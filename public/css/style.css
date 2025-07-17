@@ -1,0 +1,61 @@
+.logout-btn {
+    border: 2px solid;
+    border-color: rgba(0, 0, 0, 0.041);
+    background-color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+}
+
+.logout-button:hover {
+    box-shadow: 0 2px 8px rgb(51, 25, 77);
+}
+
+.custombar {
+    background-color: white;
+    border-bottom: 2px solid rgba(92, 92, 92, 0.219);
+    box-shadow: 0 2px 8px rgba(92, 92, 92, 0.219);
+}
+
+.bgcolor {
+    background-color: #f8f8f8bd;
+}
+
+.login-btn {
+    border: 2px solid;
+    border-color: rgba(0, 0, 0, 0.041);
+    background-color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: rgb(27, 27, 27);
+}
+
+.login-btn:hover {
+    box-shadow: 0 2px 8px rgb(51, 25, 77);
+    color: black;
+}
+
+.register-btn {
+    border: 2px solid;
+    border-color: rgba(0, 0, 0, 0.041);
+    background-color: rgb(49, 49, 49);
+    padding:  10px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: white;
+}
+
+.register-btn:hover {
+    color: rgb(221, 221, 221);
+    box-shadow: 0 2px 8px rgb(51, 25, 77);
+}
+
+.brand-txt {
+    color: black;
+    font-family: Arial, Helvetica, sans-serif;
+    font-weight: bold;
+}
+
+.brand-txt:hover {
+    color: rgb(48, 48, 48);
+}

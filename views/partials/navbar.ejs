@@ -1,0 +1,45 @@
+<!-- views/partials/navbar.ejs -->
+<nav class="navbar navbar-expand-md justify-content-center p-4 custombar mb-5">
+    <div class="container-fluid position-relative">
+        <button class="btn me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvas">
+            ☰
+        </button>
+
+        <a class="navbar-brand position-absolute start-50 translate-middle-x brand-txt" href="/index">ECP SMART PET FEEDER</a>
+
+        <div class="d-flex">
+            <% if (typeof user !== 'undefined' && user) { %>
+                <a class="mx-3 login-btn" href="/profile">
+                    <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="16" height="16">
+                    <span class="ms-1"><%= user.username %></span>
+                </a>
+                <form action="/logout" method="GET">
+                    <button type="submit" class="logout-btn">
+                        <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16">
+                    </button>
+                </form>
+            <% } else { %>
+                <a href="/login" class="login-btn mx-3">Sign In</a>
+                <a href="/register" class="register-btn">Sign Up</a>
+            <% } %>
+        </div>
+    </div>
+</nav>
+
+<!--offcanvas-->
+    <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvas" aria-labelledby="offcanvasExampleLabel">
+        <div class="offcanvas-header">
+            <h5 class="offcanvas-title">All Devices</h5>
+            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+        </div>
+        <div class="offcanvas-body">
+            <div>
+            Some text as placeholder. In real life you can have the elements you have chosen. Like, text, images, lists, etc.
+            </div>
+            <div class="dropdown mt-3">
+                <a class="btn btn-secondary" type="button" href="../dashboard">
+                    Dashboard test
+                </a>
+            </div>
+        </div>
+    </div>
