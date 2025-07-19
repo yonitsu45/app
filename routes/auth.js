@@ -103,4 +103,10 @@ router.get('/logout', (req, res) => {
   });
 });
 
+router.get('/dashboard', isLoggedIn, (req, res) => {
+  res.render('dashboard', {
+    user: req.session.user
+  });
+});
+
 module.exports = router;

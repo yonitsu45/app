@@ -17,12 +17,13 @@ app.use(express.static(path.join(__dirname, 'views')));
 
 let lastImageBuffer = null;
 
+//websocket camera
 wss.on('connection', ws => {
   console.log('✅ WebSocket Connected');
 
   ws.on('message', (data, isBinary) => {
     if (isBinary) {
-      console.log('📷 Received image binary data:', data.length, 'bytes');
+      console.log('Received image binary data:', data.length, 'bytes');
       lastImageBuffer = data;
 
       // broadcast ให้ทุก client ที่เป็น browser
@@ -32,7 +33,7 @@ wss.on('connection', ws => {
         }
       });
     } else {
-      console.log('📨 Message:', data.toString());
+      console.log('Message:', data.toString());
     }
   });
 });
@@ -45,7 +46,6 @@ app.use(session({
 app.use(flash());
 app.use(authRoutes);
 
-app.use(authRoutes);
 app.get('/', (req, res) => res.render('index'))
 app.get('/index', (req, res) => {
   res.render('index', {
