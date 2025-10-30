@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
-const { isLoggedIn } = require('../middleware/auth');
+const { isLoggedIn } = require('../middleware/isLogged');
 
 router.get('/dashboard/:id', isLoggedIn, (req, res) => {
   const { id } = req.params;
@@ -14,11 +14,30 @@ router.get('/dashboard/:id', isLoggedIn, (req, res) => {
     }
 
     const dashboard = results[0];
-    res.render('dashboard', {
+    res.render('dashboard-list', {
       user: req.session.user,
-      dashboard
+      dashboards: results || []
     });
   });
+});
+
+router.post('/dashboard/add', isLoggedIn, (req, res) => {
+  const { name } = req.body;
+  const userId = req.session.user.id;
+
+  if (!name) return res.json({ success: false, message: 'กรุณาตั้งชื่อ Dashboard' });
+
+  db.query(
+    'INSERT INTO dashboards (user_id, name) VALUES (?, ?)',
+    [userId, name],
+    (err, result) => {
+      if (err) {
+        console.error(err);
+        return res.json({ success: false, message: 'เกิดข้อผิดพลาดในการบันทึก' });
+      }
+      res.json({ success: true });
+    }
+  );
 });
 
 module.exports = router;

@@ -24,28 +24,37 @@ app.use(session({
   saveUninitialized: false
 }));
 app.use(flash());
+
+const db = require('./db'); // เพิ่มบรรทัดนี้ด้วย
+
+app.use(async (req, res, next) => {
+  if (req.session && req.session.user) {
+    const userId = req.session.user.id;
+    db.query('SELECT * FROM dashboards WHERE user_id = ?', [userId], (err, results) => {
+      if (err) {
+        console.error(err);
+        res.locals.dashboards = [];
+        return next();
+      }
+      res.locals.user = req.session.user;
+      res.locals.dashboards = results || [];
+      next();
+    });
+  } else {
+    res.locals.user = null;
+    res.locals.dashboards = [];
+    next();
+  }
+});
+
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(pageRoutes);
 
 app.use((req, res, next) => {
-  if (!req.session.user) {
-    res.locals.user = null;
-    res.locals.dashboards = [];
-    return next();
-  }
-
-  const userId = req.session.user.userID;
-  db.query('SELECT * FROM dashboards WHERE userID = ?', [userId], (err, results) => {
-    if (err) {
-      res.locals.dashboards = [];
-      return next();
-    }
-
-    res.locals.user = req.session.user;
-    res.locals.dashboards = results || [];
-    next();
-  });
+  res.locals.user = req.session.user || null;
+  res.locals.dashboards = []; // ✅ ป้องกัน undefined
+  next();
 });
 
 server.listen(4000, () => {

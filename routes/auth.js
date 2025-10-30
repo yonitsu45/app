@@ -109,23 +109,4 @@ router.get('/dashboardcam', isLoggedIn, (req, res) => {
   });
 });
 
-router.post('/add-dashboard', isLoggedIn, (req, res) => {
-  const { name } = req.body;
-  const userId = req.session.user.id;
-
-  if (!name) return res.json({ success: false, message: 'กรุณาตั้งชื่อ' });
-
-  db.query(
-    'INSERT INTO dashboards (user_id, name) VALUES (?, ?)',
-    [userId, name],
-    (err, result) => {
-      if (err) {
-        console.error(err);
-        return res.json({ success: false, message: 'Error adding dashboard' });
-      }
-      res.json({ success: true });
-    }
-  );
-});
-
 module.exports = router;

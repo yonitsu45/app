@@ -6,7 +6,7 @@ router.get('/', (req, res) => res.render('index'));
 router.get('/index', (req, res) => {
   res.render('index', {
     user: req.session.user || null,
-    message: req.session.successMessage || null
+    message: req.session.successMessage || null,
   });
   delete req.session.successMessage;
 });
