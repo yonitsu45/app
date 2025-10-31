@@ -103,8 +103,8 @@ router.get('/logout', (req, res) => {
   });
 });
 
-router.get('/dashboard', isLoggedIn, (req, res) => {
-  res.render('dashboard', {
+router.get('/dashboardcam', isLoggedIn, (req, res) => {
+  res.render('dashboardcam', {
     user: req.session.user
   });
 });

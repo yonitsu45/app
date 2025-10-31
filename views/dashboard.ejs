@@ -8,50 +8,16 @@
     <link rel="stylesheet" href="/css/style.css">
     <title>ECP SMART PET FEEDER</title>
 </head>
-
-<style>
-  .divider-vertical {
-    width: 1px;
-    height: 150px;
-    background-color: #ccc;
-    margin: 0 20px;
-  }
-</style>
-
 <body class="bgcolor">
     <%- include('partials/navbar') %>
 
     <div class="container mt-4">
         <div class="card">
-            <div class="card-body">
-                <img id="stream" width="640" height="480" />
-                <script>
-                    const imgElement = document.getElementById("stream");
-                    const socket = new WebSocket("ws://" + location.host);
-
-                    socket.binaryType = "arraybuffer"; // รับเป็น binary
-
-                    socket.onmessage = (event) => {
-                    if (event.data instanceof ArrayBuffer) {
-                        const blob = new Blob([event.data], { type: "image/jpeg" });
-                        const url = URL.createObjectURL(blob);
-                        imgElement.src = url;
-
-                        // cleanup blob เก่า
-                        setTimeout(() => URL.revokeObjectURL(url), 100);
-                    } else {
-                        console.log("Text:", event.data);
-                    }
-                    };
-
-                    socket.onopen = () => {
-                    console.log("✅ Connected to server");
-                    };
-
-                    socket.onerror = (err) => {
-                    console.error("❌ WebSocket Error:", err);
-                    };
-                </script>
+            <div class="card-body" style="border: 2px; border-color: black;">
+                <h1><%= dashboard.dashboardName %></h1>
+                <p>หน้านี้เป็น Dashboard ของคุณ (<%= user.username %>)</p>
+                <hr>
+                <p>ยังไม่มีข้อมูล — ในอนาคตสามารถแสดงกราฟ, ตาราง, สถานะเครื่อง, ฯลฯ ได้</p>
             </div>
         </div>
     </div>
