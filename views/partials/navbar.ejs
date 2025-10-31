@@ -33,14 +33,14 @@
             <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            <!-- <div class="dropdown mt-3 d-flex flex-column">
+            <div class="dropdown mt-3 d-flex flex-column">
                 <a class="btn btn-secondary mb-3" type="button" href="../dashboardcam">
                     Dashboard test
                 </a>
                 <a class="btn btn-secondary mb-3" type="button" href="../testboard">
                     Dashboard 2
                 </a>
-            </div> -->
+            </div>
 
             <div id="dashboardList">
                 <% if (dashboards.length > 0) { %>
@@ -52,7 +52,7 @@
                 <% } %>
             </div>
 
-            <button class="btn btn-primary mt-3" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</button>
+            <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
 
             <div class="modal fade" id="addDashboard" tabindex="-1" aria-labelledby="addDashboard" aria-hidden="true">
                 <div class="modal-dialog">

@@ -27,7 +27,7 @@ router.post('/dashboard/add', isLoggedIn, (req, res) => {
   }
 
   db.query(
-    'INSERT INTO dashboards (userID, name) VALUES (?, ?)',
+    'INSERT INTO dashboards (userID, dashboardName) VALUES (?, ?)',
     [userId, name],
     (err, result) => {
       if (err) {
