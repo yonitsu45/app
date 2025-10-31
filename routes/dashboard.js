@@ -2,40 +2,40 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 const { isLoggedIn } = require('../middleware/isLogged');
+const { getDashboards } = require('../middleware/getDashboards');
 
-router.get('/dashboard/:id', isLoggedIn, (req, res) => {
+router.get('/dashboard/:id', isLoggedIn, getDashboards, (req, res) => {
   const { id } = req.params;
   const userId = req.session.user.userID;
-
+  
   db.query('SELECT * FROM dashboards WHERE dashboardID = ? AND userID = ?', [id, userId], (err, results) => {
-    if (err) throw err;
-    if (results.length === 0) {
-      return res.status(404).send('ไม่พบ dashboard หรือคุณไม่มีสิทธิ์เข้าถึง');
-    }
-
+    // ...
     const dashboard = results[0];
-    res.render('dashboard-list', {
+    res.render('dashboard', {
       user: req.session.user,
-      dashboards: results || []
+      dashboard: dashboard
     });
   });
 });
 
 router.post('/dashboard/add', isLoggedIn, (req, res) => {
   const { name } = req.body;
-  const userId = req.session.user.id;
+  const userId = req.session.user.userID;
 
-  if (!name) return res.json({ success: false, message: 'กรุณาตั้งชื่อ Dashboard' });
+  if (!name) {
+    return res.render('index', { message: 'กรุณาตั้งชื่อ Dashboard', error: true });
+  }
 
   db.query(
-    'INSERT INTO dashboards (user_id, name) VALUES (?, ?)',
+    'INSERT INTO dashboards (userID, name) VALUES (?, ?)',
     [userId, name],
     (err, result) => {
       if (err) {
         console.error(err);
-        return res.json({ success: false, message: 'เกิดข้อผิดพลาดในการบันทึก' });
+       return res.render('index', { message: 'เกิดข้อผิดพลาดในการบันทึก', error: true });
       }
-      res.json({ success: true });
+      const newDashboardId = result.insertId;
+      res.redirect(`/dashboard/${newDashboardId}`);
     }
   );
 });

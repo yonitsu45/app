@@ -25,22 +25,32 @@ app.use(session({
 }));
 app.use(flash());
 
-const db = require('./db'); // เพิ่มบรรทัดนี้ด้วย
+const db = require('./db'); // ต้องมีบรรทัดนี้
 
-app.use(async (req, res, next) => {
+app.use((req, res, next) => {
   if (req.session && req.session.user) {
-    const userId = req.session.user.id;
-    db.query('SELECT * FROM dashboards WHERE user_id = ?', [userId], (err, results) => {
+    const userId = req.session.user.userID; 
+    const sql = `
+      SELECT dashboardID AS id, dashboardName AS name 
+      FROM dashboards 
+      WHERE userID = ? 
+      ORDER BY dashboardName ASC
+    `;
+    
+    db.query(sql, [userId], (err, dashboardList) => {
       if (err) {
-        console.error(err);
+        console.error("Error fetching dashboard list for navbar:", err);
         res.locals.dashboards = [];
-        return next();
+      } else {
+        res.locals.dashboards = dashboardList || []; // ส่งรายการ Dashboard
       }
-      res.locals.user = req.session.user;
-      res.locals.dashboards = results || [];
-      next();
+      
+      res.locals.user = req.session.user; // ส่งข้อมูล User
+      next(); // ไปยัง Route ถัดไป
     });
+
   } else {
+    // ถ้าไม่ได้ Login
     res.locals.user = null;
     res.locals.dashboards = [];
     next();
@@ -50,12 +60,6 @@ app.use(async (req, res, next) => {
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(pageRoutes);
-
-app.use((req, res, next) => {
-  res.locals.user = req.session.user || null;
-  res.locals.dashboards = []; // ✅ ป้องกัน undefined
-  next();
-});
 
 server.listen(4000, () => {
   console.log(`WebSocket + Web server ready at http://localhost:4000`);
