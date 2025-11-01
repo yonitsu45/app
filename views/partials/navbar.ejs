@@ -1,3 +1,5 @@
+<!-- <%- include('namingModal') %> -->
+
 <!-- views/partials/navbar.ejs -->
 <nav class="navbar navbar-expand-md justify-content-center p-4 custombar mb-5">
     <div class="container-fluid position-relative">
@@ -33,72 +35,59 @@
             <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
         </div>
         <div class="offcanvas-body">
-            <div class="dropdown mt-3 d-flex flex-column">
-                <a class="btn btn-secondary mb-3" type="button" href="../dashboardcam">
-                    Dashboard test
-                </a>
-                <a class="btn btn-secondary mb-3" type="button" href="../testboard">
-                    Dashboard 2
-                </a>
-            </div>
-
-            <div id="dashboardList">
-                <% if (dashboards.length > 0) { %>
-                <% dashboards.forEach(d => { %>
-                    <a href="/dashboard/<%= d.id %>" class="btn btn-secondary mb-2 d-block"><%= d.name %></a>
-                <% }) %>
-                <% } else { %>
-                <p class="text-muted">ยังไม่มี Dashboard</p>
-                <% } %>
-            </div>
-
-            <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
-
-            <div class="modal fade" id="addDashboard" tabindex="-1" aria-labelledby="addDashboard" aria-hidden="true">
-                <div class="modal-dialog">
-                    <div class="modal-content">
-                    <form action="/dashboard/add" method="POST">
-                        <div class="modal-header">
-                        <h5 class="modal-title" id="addDashboardLabel">เพิ่ม Dashboard ใหม่</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-
-                        <div class="modal-body">
-                        <div class="mb-3">
-                            <label for="dashboardName" class="form-label">ชื่อ Dashboard</label>
-                            <input type="text" name="name" class="form-control" id="dashboardName" placeholder="กรอกชื่อ Dashboard" required>
-                        </div>
-                        </div>
-
-                        <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                        <button type="submit" class="btn btn-success">บันทึก</button>
-                        </div>
-                    </form>
-                    </div>
+            <!-- login check -->
+            <% if (typeof user !== 'undefined' && user) { %>
+                <div class="dropdown mt-3 d-flex flex-column">
+                    <a class="btn btn-secondary mb-3" type="button" href="../dashboardcam">
+                        Dashboard test
+                    </a>
+                    <a class="btn btn-secondary mb-3" type="button" href="../testboard">
+                        Dashboard 2
+                    </a>
                 </div>
-            </div>
-            
-            <!-- <script>
-            function createDashboard() {
-            const name = document.getElementById('dashboardName').value.trim();
-            if (!name) return alert('กรุณากรอกชื่อ');
 
-            fetch('/dashboard/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.success) {
-                alert('สร้าง Dashboard สำเร็จ!');
-                location.reload(); // โหลดหน้าใหม่เพื่อแสดง Dashboard ที่เพิ่ม
-                } else {
-                alert(data.message);
-                }
-            });
-            }
-            </script> -->
+                <!-- show dashboards -->
+                <div id="dashboardList">
+                    <% if (dashboards.length > 0) { %>
+                        <% dashboards.forEach(d => { %>
+                            <a href="/dashboard/<%= d.id %>" class="btn btn-secondary mb-2 d-block"><%= d.name %></a>
+                        <% }) %>
+                    <% } else { %>
+                        <p class="text-muted">ยังไม่มี Dashboard</p>
+                    <% } %>
+                </div>
+
+                    <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
+                <% } else { %>
+                    <p class="text-muted">เมื่อเข้าสู่ระบบแล้ว Dashboard จะปรากฎที่นี่</p>
+                <% } %>
         </div>
     </div>
+
+    <%- include('namingModal') %>
+
+    <!-- naming dashboard modal -->
+    <!-- <div class="modal fade" id="addDashboard" tabindex="-1" aria-labelledby="addDashboard" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+            <form action="/dashboard/add" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addDashboardLabel">เพิ่ม Dashboard ใหม่</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="modal-body">
+                <div class="mb-3">
+                    <label for="dashboardName" class="form-label">ชื่อ Dashboard</label>
+                    <input type="text" name="name" class="form-control" id="dashboardName" placeholder="กรอกชื่อ Dashboard" required>
+                </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="submit" class="btn btn-success">บันทึก</button>
+                </div>
+            </form>
+            </div>
+        </div>
+    </div> -->

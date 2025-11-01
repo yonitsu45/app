@@ -11,7 +11,7 @@ const getDashboards = (req, res, next) => {
         SELECT dashboardID AS id, dashboardName AS name 
         FROM dashboards 
         WHERE userID = ? 
-        ORDER BY dashboardName ASC
+        ORDER BY dashboardID ASC
     `;
 
     db.query(sql, [userId], (err, results) => {
