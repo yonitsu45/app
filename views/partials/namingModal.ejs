@@ -8,10 +8,16 @@
             </div>
 
             <div class="modal-body">
-            <div class="mb-3">
-                <label for="dashboardName" class="form-label">ชื่อ Dashboard</label>
-                <input type="text" name="name" class="form-control" id="dashboardName" placeholder="กรอกชื่อ Dashboard" required>
-            </div>
+                <div class="mb-3">
+                    <label for="feederToken" class="form-label">Token / Serial Number (รหัสหลังเครื่อง)</label>
+                    <input type="text" name="token" class="form-control" id="feederToken" placeholder="เช่น FEEDER-A001" required>
+                    <div class="form-text">รหัสที่ติดอยู่กับตัวเครื่อง ESP32 ของคุณ</div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="dashboardName" class="form-label">ตั้งชื่อเรียกอุปกรณ์</label>
+                    <input type="text" name="name" class="form-control" id="dashboardName" placeholder="เช่น เครื่องให้อาหารแมวห้องนอน" required>
+                </div>
             </div>
 
             <div class="modal-footer">
