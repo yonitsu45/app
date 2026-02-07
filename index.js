@@ -64,6 +64,7 @@ app.use(dashboardRoutes);
 app.use(pageRoutes);
 app.use(addTokenRouter);
 
-server.listen(4000, () => {
+const PORT = process.env.PORT || 4000;
+server.listen(PORT, () => {
   console.log(`WebSocket + Web server ready at http://localhost:4000`);
 });
