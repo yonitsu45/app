@@ -2,13 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const router = express.Router();
-
-function isLoggedIn(req, res, next) {
-  if (req.session.user) {
-    return next();
-  }
-  res.redirect('/login');
-}
+const { isLoggedIn } = require('../middleware/isLogged');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -105,8 +99,50 @@ router.get('/logout', (req, res) => {
 
 router.get('/dashboardcam', isLoggedIn, (req, res) => {
   res.render('dashboardcam', {
+    user: req.session.user,
+    dashboard: {
+            feederID: 1, // ใส่ ID ให้ตรงกับที่ ESP32 คุณเชื่อมต่อ (ดูใน Database)
+            dashboardName: "Camera Test"
+        }
+  });
+});
+
+router.get('/testboard', isLoggedIn, (req, res) => {
+  res.render('testboard', {
     user: req.session.user
   });
+});
+
+// routes/pages.js หรือไฟล์ router ที่คุณใช้
+router.get('/admindashboard', isLoggedIn, async (req, res) => {
+    //admin checking
+    if (req.session.user.urole !== 'admin') {
+        return res.redirect('/index');
+    }
+
+    try {
+        //pull user
+        const [users] = await db.promise().query('SELECT * FROM users ORDER BY urole ASC');
+        //join table
+        const sqlFeeders = `
+            SELECT p.*, u.username as ownerName 
+            FROM petfeeders p 
+            LEFT JOIN users u ON p.userID = u.userID 
+            ORDER BY p.feederID ASC
+        `;
+        const [feeders] = await db.promise().query(sqlFeeders);
+
+        // 3. ส่งข้อมูลทั้ง 2 ก้อนไปที่หน้า admin.ejs
+        res.render('admindashboard', {
+            user: req.session.user, // สำหรับ Navbar
+            allUsers: users,
+            allFeeders: feeders
+        });
+
+    } catch (err) {
+        console.error(err);
+        res.redirect('/index');
+    }
 });
 
 module.exports = router;

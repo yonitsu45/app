@@ -24,7 +24,7 @@
     <div class="container mt-4">
         <div class="card">
             <div class="card-body">
-                <img id="stream" width="640" height="480" />
+                <!-- <img id="stream" width="640" height="480" />
                 <script>
                     const imgElement = document.getElementById("stream");
                     const socket = new WebSocket("ws://" + location.host);
@@ -51,11 +51,61 @@
                     socket.onerror = (err) => {
                     console.error("❌ WebSocket Error:", err);
                     };
+                </script> -->
+
+                <div class="card mt-3">
+                    <div class="card-header bg-dark text-white">Live Camera</div>
+                    <div class="card-body text-center">
+                        <img id="liveStream" src="" alt="Waiting for stream..." style="max-width: 100%; border-radius: 8px; border: 2px solid #ddd;">
+                        <p class="text-muted mt-2" id="camStatus">Connecting...</p>
+                    </div>
+                </div>
+
+                <script>
+                    // URL ของ WebSocket (แก้ IP/Port ให้ตรงกับของจริง)
+                    const wsUrl = 'ws://' + window.location.hostname + ':' + window.location.port;
+                    const ws = new WebSocket(wsUrl);
+                    
+                    const imgElement = document.getElementById('liveStream');
+                    const statusElement = document.getElementById('camStatus');
+                    // const currentFeederID = '<%= dashboard.feederID %>'; // รับค่า ID จาก EJS
+                    const currentFeederID = 5;
+
+                    ws.onopen = () => {
+                        console.log('Connected to WS');
+                        statusElement.innerText = "Waiting for video...";
+                        
+                        // ส่งข้อความบอก Server ว่า "ฉันต้องการดูภาพของเครื่องนี้นะ"
+                        ws.send(JSON.stringify({
+                            type: 'watch',
+                            feederID: currentFeederID
+                        }));
+                    };
+
+                    ws.onmessage = (event) => {
+                        // ถ้าข้อมูลที่ส่งมาเป็น Blob (Binary Image)
+                        if (event.data instanceof Blob) {
+                            // แปลง Blob เป็น URL เพื่อแสดงใน <img src>
+                            const url = URL.createObjectURL(event.data);
+                            
+                            // เคลียร์ URL เก่าเพื่อคืน Memory
+                            imgElement.onload = () => {
+                                URL.revokeObjectURL(imgElement.src);
+                            };
+                            
+                            imgElement.src = url;
+                            statusElement.innerText = "Live";
+                            statusElement.style.color = "green";
+                        }
+                    };
+
+                    ws.onclose = () => {
+                        statusElement.innerText = "Disconnected";
+                        statusElement.style.color = "red";
+                    };
                 </script>
             </div>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js" integrity="sha384-IQsoLXl5PILFhosVNubq5LC7Qb9DXgDA9i+tQ8Zj3iwWAwPtgFTxbJ8NT4GN1R8p" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.min.js" integrity="sha384-cVKIPhGWiC2Al4u+LWgxfKTRIcfu0JTxR+EQDz/bgldoEyl4H0zUF0QKbrJ0EcQF" crossorigin="anonymous"></script>
 </body>
 </html>

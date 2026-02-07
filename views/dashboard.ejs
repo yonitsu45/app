@@ -17,9 +17,142 @@
                 <h1><%= dashboard.dashboardName %></h1>
                 <p>หน้านี้เป็น Dashboard ของคุณ (<%= user.username %>)</p>
                 <hr>
-                <p>ยังไม่มีข้อมูล — ในอนาคตสามารถแสดงกราฟ, ตาราง, สถานะเครื่อง, ฯลฯ ได้</p>
+                <div class="mb-3">
+                    <span class="me-2 fw-bold">สถานะเครื่อง:</span>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" role="switch" id="masterSwitch"
+                            style="width: 3em; height: 1.5em;"
+                            <%= feederStatus == 1 ? 'checked' : '' %> 
+                            onchange="toggleFeederStatus('<%= dashboard.feederID %>')">
+                        <label class="form-check-label ms-2" id="masterStatusLabel">
+                            <%= feederStatus == 1 ? 'ทำงาน' : 'หยุดทำงาน' %>
+                        </label>
+                    </div>
+                </div>
+                <% if (configs.length > 0) { %>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>เวลา</th>
+                                <th>ประเภท</th>
+                                <th>ระยะเวลา (วินาที)</th>
+                                <th>ลบ</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% configs.forEach(cfg => { %>
+                                <tr>
+                                    <td><%= cfg.feedTime %></td>
+                                    <td><%= cfg.type %></td>
+                                    <td><%= cfg.feedDura %></td>
+                                    <td>
+                                        <form action="/config/delete/<%= cfg.conID %>" method="POST" onsubmit="if(confirm('ยืนยันที่จะลบการตั้งค่านี้?')) { notifyServerUpdate(); return true; } else { return false; }">
+                                            <input type="hidden" name="dashboardID" value="<%= dashboard.dashboardID %>">
+                                            <input type="hidden" name="feederID" value="<%= dashboard.feederID %>">
+                                            <button type="submit" class="btn btn-danger btn-sm">
+                                                <img src="https://www.svgrepo.com/show/533010/trash-alt.svg" alt="conDelete" width="16" height="16" style="filter: invert(1);">
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            <% }) %>
+                        </tbody>
+                    </table>
+                <% } else { %>
+                    <div class="alert alert-secondary text-center mt-3">
+                        ยังไม่มีการตั้งค่าการให้อาหาร
+                    </div>
+                <% } %>
+                <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addConfig">+ เพิ่มเวลาให้อาหาร</a>
+                <hr>
+
+                <div class="card mt-3">
+                    <div class="card-header bg-dark text-white">Live Camera</div>
+                    <div class="card-body text-center">
+                        <img id="liveStream" src="" alt="Waiting for stream..." style="max-width: 100%; border-radius: 8px; border: 2px solid #ddd;">
+                        <p class="text-muted mt-2" id="camStatus">Connecting...</p>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
+    <script>
+        function toggleFeederStatus(feederID) {
+            const switchElem = document.getElementById('masterSwitch');
+            const labelElem = document.getElementById('masterStatusLabel');
+            const isActive = switchElem.checked ? 1 : 0; // 1 = On, 0 = Off
+
+            // อัปเดตข้อความทันทีเพื่อความลื่นไหล
+            labelElem.innerText = isActive ? 'ทำงาน' : 'หยุดทำงาน';
+            labelElem.style.color = isActive ? 'green' : 'gray';
+
+            // ส่งข้อมูลไปบันทึกที่ Server โดยไม่ต้องรีเฟรชหน้า (ใช้ fetch)
+            fetch('/feeder/status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ feederID: feederID, isActive: isActive })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    console.log('Update success');
+                } else {
+                    alert('เกิดข้อผิดพลาด: ' + data.message);
+                    // ถ้าพัง ให้ดีดสวิตช์กลับ
+                    switchElem.checked = !switchElem.checked;
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('เชื่อมต่อ Server ไม่ได้');
+            });
+        }
+    </script>
+    <script>
+        // URL ของ WebSocket
+        const wsUrl = 'ws://' + window.location.hostname + ':' + window.location.port;
+        const ws = new WebSocket(wsUrl);
+        
+        const imgElement = document.getElementById('liveStream');
+        const statusElement = document.getElementById('camStatus');
+        
+        // ✅ แก้จุดนี้: ให้รับค่า ID จริงๆ จาก Backend (เอาคอมเมนต์ออก)
+        const currentFeederID = '<%= dashboard.feederID %>'; 
+        // const currentFeederID = 1;  <-- ลบบรรทัดที่ Fix เลข 1 ทิ้งไปซะ
+
+        ws.onopen = () => {
+            console.log('Connected to WS for Feeder ID:', currentFeederID); // log ดูหน่อยว่าได้เลขอะไร
+            statusElement.innerText = "Waiting for video...";
+            
+            ws.send(JSON.stringify({
+                type: 'watch',
+                feederID: currentFeederID
+            }));
+        };
+
+        ws.onmessage = (event) => {
+            // ถ้าข้อมูลที่ส่งมาเป็น Blob (Binary Image)
+            if (event.data instanceof Blob) {
+                // แปลง Blob เป็น URL เพื่อแสดงใน <img src>
+                const url = URL.createObjectURL(event.data);
+                
+                // เคลียร์ URL เก่าเพื่อคืน Memory
+                imgElement.onload = () => {
+                    URL.revokeObjectURL(imgElement.src);
+                };
+                
+                imgElement.src = url;
+                statusElement.innerText = "Live";
+                statusElement.style.color = "green";
+            }
+        };
+
+        ws.onclose = () => {
+            statusElement.innerText = "Disconnected";
+            statusElement.style.color = "red";
+        };
+    </script>
+    <%- include('partials/configModal') %>
 </body>
 </html>

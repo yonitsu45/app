@@ -8,11 +8,13 @@ const authRoutes = require('./routes/auth');
 const dashboardRoutes = require('./routes/dashboard');
 const setupWebsocket = require('./routes/websocket');
 const pageRoutes = require('./routes/pages');   
+const addTokenRouter = require('./routes/addToken');
 
 const app = express();
 const server = http.createServer(app);
 setupWebsocket(server);
 
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
 app.set('view engine', 'ejs');
@@ -60,6 +62,7 @@ app.use((req, res, next) => {
 app.use(authRoutes);
 app.use(dashboardRoutes);
 app.use(pageRoutes);
+app.use(addTokenRouter);
 
 server.listen(4000, () => {
   console.log(`WebSocket + Web server ready at http://localhost:4000`);

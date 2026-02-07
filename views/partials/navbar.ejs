@@ -1,6 +1,5 @@
-<!-- <%- include('namingModal') %> -->
+<link rel="stylesheet" href="style.css">
 
-<!-- views/partials/navbar.ejs -->
 <nav class="navbar navbar-expand-md justify-content-center p-4 custombar mb-5">
     <div class="container-fluid position-relative">
         <button class="btn me-3" type="button" data-bs-toggle="offcanvas" data-bs-target="#offcanvas">
@@ -11,13 +10,18 @@
 
         <div class="d-flex">
             <% if (typeof user !== 'undefined' && user) { %>
+                <% if (user.urole == 'admin') { %>
+                    <a href="/admindashboard" class="login-btn">
+                        <img src="https://www.svgrepo.com/show/447556/admin-network.svg" alt="admin-btn" width="16" height="16">
+                    </a>
+                <% } %>
                 <a class="mx-3 login-btn" href="/profile">
                     <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="16" height="16">
                     <span class="ms-1"><%= user.username %></span>
                 </a>
                 <form action="/logout" method="GET">
-                    <button type="submit" class="logout-btn">
-                        <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16">
+                    <button type="submit" class="register-btn">
+                        <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16" style="filter: invert(1);">
                     </button>
                 </form>
             <% } else { %>
@@ -37,14 +41,14 @@
         <div class="offcanvas-body">
             <!-- login check -->
             <% if (typeof user !== 'undefined' && user) { %>
-                <div class="dropdown mt-3 d-flex flex-column">
+                <!-- <div class="dropdown mt-3 d-flex flex-column">
                     <a class="btn btn-secondary mb-3" type="button" href="../dashboardcam">
                         Dashboard test
                     </a>
                     <a class="btn btn-secondary mb-3" type="button" href="../testboard">
                         Dashboard 2
                     </a>
-                </div>
+                </div> -->
 
                 <!-- show dashboards -->
                 <div id="dashboardList">
@@ -65,29 +69,3 @@
     </div>
 
     <%- include('namingModal') %>
-
-    <!-- naming dashboard modal -->
-    <!-- <div class="modal fade" id="addDashboard" tabindex="-1" aria-labelledby="addDashboard" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-            <form action="/dashboard/add" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="addDashboardLabel">เพิ่ม Dashboard ใหม่</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-
-                <div class="modal-body">
-                <div class="mb-3">
-                    <label for="dashboardName" class="form-label">ชื่อ Dashboard</label>
-                    <input type="text" name="name" class="form-control" id="dashboardName" placeholder="กรอกชื่อ Dashboard" required>
-                </div>
-                </div>
-
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="submit" class="btn btn-success">บันทึก</button>
-                </div>
-            </form>
-            </div>
-        </div>
-    </div> -->
