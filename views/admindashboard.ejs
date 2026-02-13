@@ -6,6 +6,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="icon" href="https://ibb.co/N2RZPqD5">
     <title>ECP SMART PET FEEDER</title>
 </head>
 <body class="bgcolor">
@@ -49,7 +50,7 @@
                                 <th>Username</th>
                                 <th>Email</th>
                                 <th>Role</th>
-                                <th>วันที่สมัคร</th>
+                                <th>Register date</th>
                                 <th>Action</th>
                                 </tr>
                         </thead>
@@ -67,7 +68,15 @@
                                         <% } %>
                                     </td>
                                     <td><%= u.created_at %></td>
-                                    <td><a href="" role="button" class="badge bg-success"><img src="https://www.svgrepo.com/show/522527/edit-3.svg" alt="editbutton" height="16px" width="16px" style="filter: invert(1);"></a></td>
+                                    <td>
+                                        <a role="button" class="badge bg-success edit-btn" data-id="<%= u.userID %>" 
+                                                                                data-username="<%= u.username %>"
+                                                                                data-email="<%= u.email %>"
+                                                                                data-bs-toggle="modal" 
+                                                                                data-bs-target="#adminEditUserModal">
+                                            <img src="https://www.svgrepo.com/show/522527/edit-3.svg" alt="editbutton" height="16px" width="16px" style="filter: invert(1);">
+                                        </a>
+                                    </td>
                                     </tr>
                             <% }) %>
                         </tbody>
@@ -76,16 +85,17 @@
             </div>
 
             <div class="tab-pane fade" id="feeders" role="tabpanel" aria-labelledby="feeders-tab">
-                <h4 class="mt-2">อุปกรณ์ทั้งหมดในระบบ (<%= allFeeders.length %>)</h4>
-                <div class="table-responsive">
+    <h4 class="mt-2">อุปกรณ์ทั้งหมดในระบบ (<%= allFeeders.length %>)</h4>
+            <div class="table-responsive">
                     <table class="table table-striped table-bordered mt-3">
                         <thead class="table-dark">
                             <tr>
                                 <th>ID</th>
-                                <th>ชื่อเครื่อง</th>
+                                <th>Feeder's name</th>
                                 <th>Token</th>
-                                <th>เจ้าของเครื่อง</th>
-                                <th>สถานะ</th>
+                                <th>Owner (Email)</th>
+                                <th>Status</th>
+                                <th>Action</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -95,8 +105,8 @@
                                     <td><%= f.feederName || '-' %></td>
                                     <td><code><%= f.feederToken %></code></td>
                                     <td>
-                                        <% if(f.ownerName) { %>
-                                            <span class="text-success"><%= f.ownerName %></span>
+                                        <% if(f.ownerEmail) { %>
+                                            <span class="text-primary"><%= f.ownerEmail %></span>
                                         <% } else { %>
                                             <span class="text-muted fst-italic">ยังไม่มีเจ้าของ</span>
                                         <% } %>
@@ -108,14 +118,70 @@
                                             <span class="badge bg-secondary">Offline</span>
                                         <% } %>
                                     </td>
+                                    <td>
+                                        <a role="button" class="badge bg-success edit-feeder-btn"
+                                        data-id="<%= f.feederID %>"
+                                        data-name="<%= f.feederName %>"
+                                        data-token="<%= f.feederToken %>"
+                                        data-owner-id="<%= f.userID %>" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#feederEditModal">
+                                        <img src="https://www.svgrepo.com/show/522527/edit-3.svg" alt="editbutton" height="16px" width="16px" style="filter: invert(1);">
+                                        </a>
+                                    </td>
                                 </tr>
                             <% }) %>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div>
     </div>
     <%- include('partials/addTokenModal') %>
+    <%- include('partials/userEditModal') %>
+    <%- include('partials/feederEditModal') %>
+
+<script>
+    const editBtns = document.querySelectorAll('.edit-btn');
+    editBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const username = btn.getAttribute('data-username');
+            const email = btn.getAttribute('data-email');
+            
+            const hiddenInput = document.querySelector('#adminEditUserModal input[name="targetID"]');
+            const usernameInput = document.querySelector('#adminEditUserModal input[name="username"]');
+            const emailInput = document.querySelector('#adminEditUserModal input[name="email"]'); // 🔥 หาช่อง email
+
+            if (hiddenInput) hiddenInput.value = id;
+            if (usernameInput) usernameInput.value = username;
+            
+            if (emailInput) {
+                emailInput.value = email;
+            }
+        });
+    });
+
+    const feederBtns = document.querySelectorAll('.edit-feeder-btn');
+    
+    feederBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const id = btn.getAttribute('data-id');
+            const name = btn.getAttribute('data-name');
+            const token = btn.getAttribute('data-token');
+            const ownerId = btn.getAttribute('data-owner-id');
+
+            document.getElementById('editFeederID').value = id;
+            document.getElementById('editToken').value = token;
+            document.getElementById('editFeederName').value = name;
+            
+            const selectBox = document.getElementById('editFeederOwner');
+            if (ownerId) {
+                selectBox.value = ownerId; 
+            } else {
+                selectBox.value = ""; // ถ้าไม่มีเจ้าของ ให้เลือกช่องว่าง
+            }
+        });
+    });
+</script>
 </body>
 </html>

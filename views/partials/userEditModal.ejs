@@ -1,31 +1,37 @@
-<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserLabel" aria-hidden="true">
+<div class="modal fade" id="adminEditUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-        <form action="/editUser" method="POST">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editUserLabel">แก้ไขข้อมูลผู้ใช้</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <div class="modal-body">
-                <input type="hidden" name="userID" value="<%= user.userID %>">
-
-                <div class="mb-3">
-                    <label for="email" class="form-label">อีเมล</label>
-                    <input type="email" 
-                           name="email" 
-                           class="form-control" 
-                           id="email" 
-                           value="<%= user.email %>" 
-                           required>
+            <form action="/user/update" method="POST">
+                <div class="modal-header">
+                    <h5 class="modal-title">แก้ไขข้อมูลผู้ใช้ (Admin Mode)</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-            </div>
+                <div class="modal-body">
+                    <input type="hidden" name="targetID" id="adminEditId">
 
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                <button type="submit" class="btn btn-warning">บันทึกการแก้ไข</button>
-            </div>
-        </form>
+                    <div class="mb-3">
+                        <label>Username</label>
+                        <input type="text" class="form-control" name="username" id="adminEditUsername" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label>E-mail</label>
+                        <input type="text" class="form-control" name="email" id="adminEditEmail" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label>เปลี่ยนรหัสผ่านใหม่ (ถ้าจะเปลี่ยน)</label>
+                        <input type="password" class="form-control" name="newPassword">
+                    </div>
+                    <div class="mb-3">
+                        <label>ยืนยันรหัสผ่าน</label>
+                        <input type="password" class="form-control" name="confirmPassword">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success">Save</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

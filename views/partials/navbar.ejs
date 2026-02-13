@@ -8,10 +8,10 @@
 
         <a class="navbar-brand position-absolute start-50 translate-middle-x brand-txt" href="/index">ECP SMART PET FEEDER</a>
 
-        <div class="d-flex">
+        <div class="d-none d-md-flex align-items-center">
             <% if (typeof user !== 'undefined' && user) { %>
                 <% if (user.urole == 'admin') { %>
-                    <a href="/admindashboard" class="login-btn">
+                    <a href="/admindashboard" class="login-btn me-1">
                         <img src="https://www.svgrepo.com/show/447556/admin-network.svg" alt="admin-btn" width="16" height="16">
                     </a>
                 <% } %>
@@ -19,7 +19,7 @@
                     <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="16" height="16">
                     <span class="ms-1"><%= user.username %></span>
                 </a>
-                <form action="/logout" method="GET">
+                <form action="/logout" method="GET" class="ms-1 mb-0">
                     <button type="submit" class="register-btn">
                         <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16" style="filter: invert(1);">
                     </button>
@@ -32,40 +32,56 @@
     </div>
 </nav>
 
-<!--offcanvas-->
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvas" aria-labelledby="offcanvasExampleLabel">
-        <div class="offcanvas-header">
-            <h5 class="offcanvas-title">All Devices</h5>
-            <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body">
-            <!-- login check -->
+<div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvas" aria-labelledby="offcanvasExampleLabel">
+    <div class="offcanvas-header">
+        <h5 class="offcanvas-title">Menu</h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    
+    <div class="offcanvas-body d-flex flex-column">
+        
+        <div class="mb-auto"> <h6 class="text-muted mb-3">All Devices</h6>
             <% if (typeof user !== 'undefined' && user) { %>
-                <!-- <div class="dropdown mt-3 d-flex flex-column">
-                    <a class="btn btn-secondary mb-3" type="button" href="../dashboardcam">
-                        Dashboard test
-                    </a>
-                    <a class="btn btn-secondary mb-3" type="button" href="../testboard">
-                        Dashboard 2
-                    </a>
-                </div> -->
-
-                <!-- show dashboards -->
                 <div id="dashboardList">
                     <% if (dashboards.length > 0) { %>
                         <% dashboards.forEach(d => { %>
-                            <a href="/dashboard/<%= d.id %>" class="btn btn-secondary mb-2 d-block"><%= d.name %></a>
+                            <a href="/dashboard/<%= d.id %>" class="btn btn-outline-secondary w-100 mb-2 text-start"><%= d.name %></a>
                         <% }) %>
                     <% } else { %>
-                        <p class="text-muted">ยังไม่มี Dashboard</p>
+                        <p class="text-muted small">ยังไม่มี Dashboard</p>
                     <% } %>
                 </div>
-
-                    <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
-                <% } else { %>
-                    <p class="text-muted">เมื่อเข้าสู่ระบบแล้ว Dashboard จะปรากฎที่นี่</p>
-                <% } %>
+                <a class="btn btn-primary w-100 mt-3" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
+            <% } else { %>
+                <p class="text-muted small">กรุณาเข้าสู่ระบบเพื่อดูอุปกรณ์</p>
+            <% } %>
         </div>
-    </div>
 
-    <%- include('namingModal') %>
+        <div class="d-md-none mt-4 border-top pt-3">
+            <% if (typeof user !== 'undefined' && user) { %>
+                <div class="d-flex align-items-center mb-3">
+                    <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="30" height="30" class="me-2">
+                    <strong><%= user.username %></strong>
+                </div>
+                
+                <a href="/profile" class="btn login-btn w-100 mb-2">Profile</a>
+                
+                <% if (user.urole == 'admin') { %>
+                    <a href="/admindashboard" class="btn login-btn w-100 mb-2">Admin Dashboard</a>
+                <% } %>
+
+                <form action="/logout" method="GET" class="w-100">
+                    <button type="submit" class="btn register-btn w-100">Logout</button>
+                </form>
+            <% } else { %>
+                <div class="d-grid gap-2">
+                    <a href="/login" class="btn login-btn">Sign In</a>
+                    <a href="/register" class="btn register-btn">Sign Up</a>
+                </div>
+            <% } %>
+        </div>
+
+    </div>
+</div>
+
+<%- include('namingModal') %>

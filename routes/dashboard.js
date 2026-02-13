@@ -70,7 +70,7 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
 
         const device = devices[0];
 
-        // 2. เช็คว่าเครื่องนี้มีเจ้าของหรือยัง?
+        //check ownership
         if (device.userID !== null) {
             // ถ้ามีคนเป็นเจ้าของแล้ว (และไม่ใช่เรา)
             return res.render('index', {
@@ -79,20 +79,19 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
             });
         }
 
-        // 3. เริ่มทำการ "ผูกบัญชี" (Update 2 ตาราง)
-        
-        // 3.1 อัปเดตตาราง petfeeders: ระบุว่า User คนนี้เป็นเจ้าของเครื่องนี้แล้ว
+        //update 
         await db.promise().query('UPDATE petfeeders SET userID = ?, feederName = ? WHERE feederID = ?', 
             [userId, name, device.feederID]);
 
-        // 3.2 สร้าง Dashboard ใหม่ในตาราง dashboards
+        //add new dashboard
         await db.promise().query('INSERT INTO dashboards (userID, feederID, dashboardName) VALUES (?, ?, ?)', 
             [userId, device.feederID, name]);
 
         req.flash('success', 'เพิ่มอุปกรณ์เรียบร้อยแล้ว!');
         res.render('index', {
             message: 'เพิ่มอุปกรณ์เรียบร้อยแล้ว!',
-            error: false
+            error: false,
+            autoRedirect: true
         });
 
     } catch (err) {
@@ -104,23 +103,40 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
 
 //รับค่า config แล้วส่งไป database
 router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
-        const { dashboardID } = req.body;
+    // รับค่า dashboardID มาด้วยเพื่อใช้ตอน Redirect กลับ
+    const { dashboardID, feedTime, duration } = req.body; 
+    const feederID = req.params.id; 
+
     try {
-        const feederID = req.params.id; 
-        const { feedTime, duration } = req.body; 
+        const [rows] = await db.promise().query(
+            'SELECT COUNT(*) as count FROM feedconfig WHERE feederID = ?', 
+            [feederID]
+        );
+        
+        const currentCount = rows[0].count;
+
+        if (currentCount >= 5) {
+            return res.send(`
+                <script>
+                    alert('❌ ไม่สามารถเพิ่มได้! ตั้งเวลาได้สูงสุด 5 รายการต่อเครื่องครับ');
+                    window.location.href = '/dashboard/${dashboardID}'; // เด้งกลับไปหน้าเดิม
+                </script>
+            `);
+        }
+
         const timeForDB = feedTime + ":00";
 
-        //save to db
+        // save to db
         await db.promise().query(
             'INSERT INTO feedconfig (feederID, feedTime, feedDura) VALUES (?, ?, ?)',
-            [feederID, timeForDB, duration ]
+            [feederID, timeForDB, duration]
         );
 
         res.redirect('/dashboard/' + dashboardID);
 
     } catch (err) {
         console.error("Save Error:", err);
-        res.status(500).send("Error: " + err.message);
+        res.send(`<script>alert('Error: ${err.message}'); window.history.back();</script>`);
     }
 });
 

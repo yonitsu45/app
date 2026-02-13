@@ -54,8 +54,16 @@
     color: black;
     font-family: Arial, Helvetica, sans-serif;
     font-weight: bold;
+    font-size: 1rem;
+    white-space: nowrap;
 }
 
 .brand-txt:hover {
     color: rgb(48, 48, 48);
+}
+
+@media (min-width: 768px) {
+    .brand-txt {
+        font-size: 1.25rem;
+    }
 }
