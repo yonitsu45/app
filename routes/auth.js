@@ -2,8 +2,10 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const router = express.Router();
-const mailer = require('./mailer');
+const crypto = require('crypto');
+const mailer = require('../middleware/mailer');
 const { isLoggedIn } = require('../middleware/isLogged');
+const { error } = require('console');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -326,7 +328,7 @@ router.post('/forgot-password', async (req, res) => {
         // ส่งเมล
         await mailer.sendResetPasswordEmail(email, token);
 
-        res.render('forgot-password', { message: 'ส่งลิงก์กู้คืนรหัสผ่านไปทางอีเมลแล้ว กรุณาเช็ค Inbox หรือ Junk Mail' });
+        res.render('forgot-password', { message: 'ส่งลิงก์กู้คืนรหัสผ่านไปทางอีเมลแล้ว กรุณาเช็ค Inbox หรือ Junk Mail', error: false});
 
     } catch (err) {
         console.error(err);
@@ -334,7 +336,6 @@ router.post('/forgot-password', async (req, res) => {
     }
 });
 
-// 3. หน้าตั้งรหัสใหม่ (GET) - รับ Token จาก URL
 router.get('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
     
@@ -351,7 +352,6 @@ router.get('/reset-password/:token', async (req, res) => {
     res.render('reset-password', { token: token, message: null }); // ต้องสร้างไฟล์ reset-password.ejs
 });
 
-// 4. บันทึกรหัสใหม่ (POST)
 router.post('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
     const { password, passwordCon } = req.body;

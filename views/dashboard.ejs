@@ -42,7 +42,7 @@
                         <div class="card h-100 shadow-sm border-warning">
                             <div class="card-body text-center">
                                 <h5 class="card-title text-warning">FOOD LEVEL</h5>
-                                <span class="fw-bold fs-5" id="foodText">0 g.</span>
+                                <span class="fw-bold fs-5" id="foodText">0 %</span>
                             </div>
                         </div>
                     </div>
@@ -50,7 +50,7 @@
                         <div class="card h-100 shadow-sm border-primary">
                             <div class="card-body text-center">
                                 <h5 class="card-title text-primary">WATER LEVEL</h5>
-                                <span class="fw-bold fs-5" id="waterText">0 ml.</span>
+                                <span class="fw-bold fs-5" id="waterText">0 %</span>
                             </div>
                         </div>
                     </div>
@@ -61,7 +61,7 @@
                         <thead>
                             <tr>
                                 <th>เวลา</th>
-                                <th>ระยะเวลา (วินาที)</th>
+                                <th>ปริมาณอาหาร (กรัม)</th>
                                 <th>ลบ</th>
                             </tr>
                         </thead>
@@ -88,10 +88,10 @@
                         ยังไม่มีการตั้งค่าการให้อาหาร
                     </div>
                 <% } %>
-                <% if (configs.length < 5) { %>
+                <% if (configs.length < 3) { %>
                     <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addConfig">+ เพิ่มเวลาให้อาหาร</a>
                 <% } else { %>
-                    <p class="text-muted">เวลาในการตั้งอาหารเต็มแล้ว (5 ครั้ง)</p>
+                    <p class="text-muted">เวลาในการตั้งอาหารเต็มแล้ว (3 ครั้ง)</p>
                 <% } %>
 
                 <hr>
@@ -222,12 +222,12 @@
 
             const foodText = document.getElementById('foodText');
             if (foodText) {
-                foodText.innerText = data.foodLevel + " g.";
+                foodText.innerText = data.foodLevel + " %";
             }
             
             const waterText = document.getElementById('waterText');
             if (waterText) {
-                waterText.innerText = data.waterLevel + " ml.";
+                waterText.innerText = data.waterLevel + " %";
             }
         }
 

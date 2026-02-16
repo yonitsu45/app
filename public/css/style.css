@@ -62,8 +62,23 @@
     color: rgb(48, 48, 48);
 }
 
-@media (min-width: 768px) {
+@media (min-width: 800px) {
     .brand-txt {
         font-size: 1.25rem;
     }
+}
+
+.admin-btn {
+    border: 2px solid;
+    border-color: rgba(0, 0, 0, 0.041);
+    background-color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    text-decoration: none;
+    color: rgb(27, 27, 27);
+}
+
+.admin-btn:hover {
+    background-color: rgb(224, 59, 59);
+    box-shadow: 0 2px 8px rgb(112, 63, 63);
 }

@@ -103,33 +103,47 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
 
 //รับค่า config แล้วส่งไป database
 router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
-    // รับค่า dashboardID มาด้วยเพื่อใช้ตอน Redirect กลับ
     const { dashboardID, feedTime, duration } = req.body; 
     const feederID = req.params.id; 
 
     try {
-        const [rows] = await db.promise().query(
-            'SELECT COUNT(*) as count FROM feedconfig WHERE feederID = ?', 
+        const timeForDB = feedTime + ":00";
+
+        // 1. 🔥 เช็คเวลาซ้ำ (ห้ามตั้งเวลาชนกัน)
+        const [dupRows] = await db.promise().query(
+            'SELECT * FROM feedconfig WHERE feederID = ? AND feedTime = ?', 
+            [feederID, timeForDB]
+        );
+
+        if (dupRows.length > 0) {
+            return res.send(`<script>alert('❌ เวลานี้มีอยู่แล้ว!'); window.location.href = '/dashboard/${dashboardID}';</script>`);
+        }
+
+        // 2. 🔥 หา Slot ว่าง (1, 2, หรือ 3)
+        // ดึงข้อมูล Slot ที่ใช้อยู่ตอนนี้มาดู
+        const [existingSlots] = await db.promise().query(
+            'SELECT slot FROM feedconfig WHERE feederID = ? ORDER BY slot ASC',
             [feederID]
         );
         
-        const currentCount = rows[0].count;
+        // แปลงผลลัพธ์ให้เป็น Array ตัวเลข (เช่น [1, 3])
+        const usedSlots = existingSlots.map(row => row.slot);
+        
+        // Logic หาช่องว่าง: ถ้าไม่มีเลข 1 ให้ใช้ 1, ถ้าไม่มี 2 ใช้ 2...
+        let targetSlot = null;
+        if (!usedSlots.includes(1)) targetSlot = 1;
+        else if (!usedSlots.includes(2)) targetSlot = 2;
+        else if (!usedSlots.includes(3)) targetSlot = 3;
 
-        if (currentCount >= 5) {
-            return res.send(`
-                <script>
-                    alert('❌ ไม่สามารถเพิ่มได้! ตั้งเวลาได้สูงสุด 5 รายการต่อเครื่องครับ');
-                    window.location.href = '/dashboard/${dashboardID}'; // เด้งกลับไปหน้าเดิม
-                </script>
-            `);
+        // ถ้าเต็มหมดแล้ว (ไม่มีช่องว่าง)
+        if (targetSlot === null) {
+             return res.send(`<script>alert('❌ เต็มแล้ว! (สูงสุด 3 รอบ)'); window.location.href = '/dashboard/${dashboardID}';</script>`);
         }
 
-        const timeForDB = feedTime + ":00";
-
-        // save to db
+        // 3. ✅ บันทึกโดยระบุ Slot ลงไปด้วย
         await db.promise().query(
-            'INSERT INTO feedconfig (feederID, feedTime, feedDura) VALUES (?, ?, ?)',
-            [feederID, timeForDB, duration]
+            'INSERT INTO feedconfig (feederID, feedTime, feedDura, slot) VALUES (?, ?, ?, ?)',
+            [feederID, timeForDB, duration, targetSlot]
         );
 
         res.redirect('/dashboard/' + dashboardID);
