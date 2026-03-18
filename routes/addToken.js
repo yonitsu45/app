@@ -24,7 +24,7 @@ router.post('/addToken', isLoggedIn, async (req, res) => {
         //insert
         await db.promise().query(
             'INSERT INTO petfeeders (feederToken, feederName, userID, isActive) VALUES (?, ?, NULL, 0)',
-            [token, 'New Device'] // บรรทัดนี้ตั้งชื่อเริ่มต้นไว้ ถ้า DB ยอมให้ชื่อเป็น NULL ก็ลบ 'New Device' ออกได้ครับ
+            [token, 'New Device']
         );
 
         console.log(`Added new token to system: ${token}`);

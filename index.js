@@ -30,16 +30,22 @@ app.use(session({
 }));
 app.use(flash());
 
-const db = require('./db'); // ต้องมีบรรทัดนี้
+const db = require('./db');
 
 app.use((req, res, next) => {
   if (req.session && req.session.user) {
     const userId = req.session.user.userID; 
     const sql = `
-      SELECT dashboardID AS id, dashboardName AS name 
-      FROM dashboards 
-      WHERE userID = ? 
-      ORDER BY dashboardName ASC
+      SELECT 
+        d.dashboardID AS id, 
+        d.dashboardName AS name,
+        p.foodlvl,
+        p.waterlvl,
+        p.isActive
+      FROM dashboards d
+      JOIN petfeeders p ON d.feederID = p.feederID
+      WHERE d.userID = ? 
+      ORDER BY d.dashboardName ASC
     `;
     
     db.query(sql, [userId], (err, dashboardList) => {
@@ -47,15 +53,14 @@ app.use((req, res, next) => {
         console.error("Error fetching dashboard list for navbar:", err);
         res.locals.dashboards = [];
       } else {
-        res.locals.dashboards = dashboardList || []; // ส่งรายการ Dashboard
+        res.locals.dashboards = dashboardList || [];
       }
       
-      res.locals.user = req.session.user; // ส่งข้อมูล User
-      next(); // ไปยัง Route ถัดไป
+      res.locals.user = req.session.user;
+      next();
     });
 
   } else {
-    // ถ้าไม่ได้ Login
     res.locals.user = null;
     res.locals.dashboards = [];
     next();
@@ -72,7 +77,7 @@ cron.schedule('*/10 * * * *', async () => {
     console.log('⏰ Running Task: ตรวจสอบระดับอาหาร/น้ำ...');
 
     try {
-        // ดึงเครื่องที่ อาหาร/น้ำ ต่ำกว่า 200 (และยังไม่แจ้งเตือนใน 4 ชม. ที่ผ่านมา)
+        //20 and no noti in 4hrs
         const sql = `
             SELECT p.*, u.email 
             FROM petfeeders p
@@ -89,17 +94,16 @@ cron.schedule('*/10 * * * *', async () => {
             return;
         }
 
-        // วนลูปส่งเมล
+        //mailer
         for (const feeder of feeders) {
             let msg = `อุปกรณ์ <b>${feeder.feederName}</b> แจ้งเตือน:<br>`;
             if (feeder.foodlvl < 20) msg += `- ⚠️ อาหารเหลือต่ำ (${feeder.foodlvl}%)<br>`;
             if (feeder.waterlvl < 20) msg += `- 💧 น้ำเหลือต่ำ (${feeder.waterlvl}%)<br>`;
 
-            // สั่งให้ mailer.js ทำงาน
             await mailer.sendAlertEmail(feeder.email, '⚠️ แจ้งเตือน: อาหาร/น้ำ ใกล้หมด', msg);
             console.log(`📧 ส่งเมลหา ${feeder.email} สำเร็จ!`);
 
-            // อัปเดตเวลาล่าสุด (เพื่อเริ่มนับ Cooldown ใหม่)
+            //cooldown
             await db.promise().query(
                 "UPDATE petfeeders SET last_alert_time = NOW() WHERE feederID = ?", 
                 [feeder.feederID]

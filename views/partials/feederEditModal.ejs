@@ -1,11 +1,13 @@
 <div class="modal fade" id="feederEditModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
+            
+            <div class="modal-header bg-dark text-white">
+                <h5 class="modal-title">ตั้งค่าอุปกรณ์</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
             <form action="/feeder/update" method="POST">
-                <div class="modal-header">
-                    <h5 class="modal-title">ตั้งค่าอุปกรณ์</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
                 <div class="modal-body">
                     <input type="hidden" name="feederID" id="editFeederID">
 
@@ -23,7 +25,6 @@
                         <label>Owner</label>
                         <select class="form-select" name="ownerID" id="editFeederOwner">
                             <option value="">-- ไม่ระบุเจ้าของ (ว่าง) --</option>
-                            
                             <% allUsers.forEach(u => { %>
                                 <option value="<%= u.userID %>"><%= u.email %></option>
                             <% }) %>
@@ -31,9 +32,22 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">บันทึก</button>
+                    <button type="submit" class="btn btn-success w-100">บันทึก</button>
                 </div>
             </form>
+            <hr class="m-0 border-danger border-2 opacity-50">
+
+            <div class="modal-body bg-light">
+                <form action="/feeder/delete" method="POST" onsubmit="return confirm('⚠️ ยืนยันที่จะลบเครื่องนี้ออกจากระบบถาวรใช่หรือไม่?');">
+                    <input type="hidden" name="feederID" id="deleteTargetFeederID">
+                    
+                    <label class="form-label text-danger fw-bold">ลบเครื่องให้อาหารถาวร</label>
+                    <div class="input-group input-group-sm">
+                        <input type="password" name="password" class="form-control border-danger" placeholder="ใส่รหัส Admin เพื่อยืนยัน" required>
+                        <button type="submit" class="btn btn-danger">🗑️ ลบเครื่อง</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>

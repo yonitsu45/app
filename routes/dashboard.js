@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db');
+const bcrypt = require('bcryptjs');
 const { isLoggedIn } = require('../middleware/isLogged');
 const { getDashboards } = require('../middleware/getDashboards');
 
@@ -9,14 +10,12 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
   const userId = req.session.user.userID;
 
   try {
-        // 1. ดึงข้อมูล Dashboard
-        // ⚠️ บรรทัดนี้แหละที่มันฟ้องว่าประกาศซ้ำ (ให้มีแค่บรรทัดนี้อันเดียวนะครับ)
+        //pull Dashboard
         const [dashResults] = await db.promise().query(
             'SELECT * FROM dashboards WHERE dashboardID = ? AND userID = ?', 
             [id, userId]
         );
 
-        // เช็คว่าเจอข้อมูลไหม
         if (dashResults.length === 0) {
             console.log("❌ Dashboard not found or unauthorized");
             return res.redirect('/index'); 
@@ -24,26 +23,30 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
 
         const dashboard = dashResults[0]; // เก็บข้อมูล Dashboard
 
-        // 2. ดึงสถานะ Active จากตาราง petfeeders
         const [feederResults] = await db.promise().query(
             'SELECT isActive FROM petfeeders WHERE feederID = ?', 
             [dashboard.feederID]
         );
-        // ถ้าหาไม่เจอ ให้ default เป็น 0 (ปิด)
+
         const feederStatus = feederResults[0] ? feederResults[0].isActive : 0;
         
-        // 3. ดึง Config การตั้งค่าเวลา
+        //pull config
         const [configResults] = await db.promise().query(
             'SELECT * FROM feedconfig WHERE feederID = ? ORDER BY feedTime ASC', 
             [dashboard.feederID]
         );
 
-        // 4. ส่งข้อมูลไปหน้าเว็บ
+        const [logResults] = await db.promise().query(
+            'SELECT * FROM feedlogs WHERE feederID = ? ORDER BY feedAt DESC LIMIT 5',
+            [dashboard.feederID]
+        );
+
         res.render('dashboard', {
             user: req.session.user,
-            dashboard: dashboard,      // ส่ง object dashboard ไปตรงๆ
+            dashboard: dashboard,
             configs: configResults,
-            feederStatus: feederStatus
+            feederStatus: feederStatus,
+            logs: logResults
         });
 
     } catch (err) {
@@ -57,22 +60,21 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
     const userId = req.session.user.userID;
 
     try {
-        // 1. ค้นหาเครื่องที่มี Token ตรงกัน
+        //pull feeder
         const [devices] = await db.promise().query('SELECT * FROM petfeeders WHERE feederToken = ?', [token]);
         
-        // ถ้าไม่เจอเครื่องนี้ในระบบเลย
+        //not found
         if (devices.length === 0) {
             return res.render('index', {
                 message: 'ไม่พบ token',
                 error: true
-            }); // หรือกลับไปหน้าเดิม
+            });
         }
 
         const device = devices[0];
 
         //check ownership
         if (device.userID !== null) {
-            // ถ้ามีคนเป็นเจ้าของแล้ว (และไม่ใช่เรา)
             return res.render('index', {
                 message: 'ไม่พบเครื่อง',
                 error: true
@@ -109,7 +111,7 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
     try {
         const timeForDB = feedTime + ":00";
 
-        // 1. 🔥 เช็คเวลาซ้ำ (ห้ามตั้งเวลาชนกัน)
+        // schedule check 
         const [dupRows] = await db.promise().query(
             'SELECT * FROM feedconfig WHERE feederID = ? AND feedTime = ?', 
             [feederID, timeForDB]
@@ -118,18 +120,14 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
         if (dupRows.length > 0) {
             return res.send(`<script>alert('❌ เวลานี้มีอยู่แล้ว!'); window.location.href = '/dashboard/${dashboardID}';</script>`);
         }
-
-        // 2. 🔥 หา Slot ว่าง (1, 2, หรือ 3)
-        // ดึงข้อมูล Slot ที่ใช้อยู่ตอนนี้มาดู
+        // schedule slot
         const [existingSlots] = await db.promise().query(
             'SELECT slot FROM feedconfig WHERE feederID = ? ORDER BY slot ASC',
             [feederID]
         );
         
-        // แปลงผลลัพธ์ให้เป็น Array ตัวเลข (เช่น [1, 3])
         const usedSlots = existingSlots.map(row => row.slot);
         
-        // Logic หาช่องว่าง: ถ้าไม่มีเลข 1 ให้ใช้ 1, ถ้าไม่มี 2 ใช้ 2...
         let targetSlot = null;
         if (!usedSlots.includes(1)) targetSlot = 1;
         else if (!usedSlots.includes(2)) targetSlot = 2;
@@ -140,9 +138,8 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
              return res.send(`<script>alert('❌ เต็มแล้ว! (สูงสุด 3 รอบ)'); window.location.href = '/dashboard/${dashboardID}';</script>`);
         }
 
-        // 3. ✅ บันทึกโดยระบุ Slot ลงไปด้วย
         await db.promise().query(
-            'INSERT INTO feedconfig (feederID, feedTime, feedDura, slot) VALUES (?, ?, ?, ?)',
+            'INSERT INTO feedconfig (feederID, feedTime, feedAmount, slot) VALUES (?, ?, ?, ?)',
             [feederID, timeForDB, duration, targetSlot]
         );
 
@@ -186,6 +183,81 @@ router.post('/feeder/status', isLoggedIn, async (req, res) => {
     } catch (err) {
         console.error(err);
         res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+router.get('/api/feeder/:id/logs', isLoggedIn, async (req, res) => {
+    try {
+        const feederID = req.params.id;
+        // ดึง 10 รายการล่าสุด
+        const [logResults] = await db.promise().query(
+            'SELECT * FROM feedlogs WHERE feederID = ? ORDER BY feedAt DESC LIMIT 5',
+            [feederID]
+        );
+        res.json(logResults);
+    } catch (err) {
+        console.error("Fetch Logs Error:", err);
+        res.status(500).json({ error: "Server Error" });
+    }
+});
+
+router.post('/dashboard/:id/edit', isLoggedIn, async (req, res) => {
+    const dashboardID = req.params.id;
+    const userId = req.session.user.userID;
+    const { newName } = req.body;
+
+    try {
+        // 1. อัปเดตชื่อในตาราง dashboards เลย
+        await db.promise().query(
+            'UPDATE dashboards SET dashboardName = ? WHERE dashboardID = ? AND userID = ?',
+            [newName, dashboardID, userId]
+        );
+
+        const [dash] = await db.promise().query('SELECT feederID FROM dashboards WHERE dashboardID = ?', [dashboardID]);
+        if (dash.length > 0) {
+            await db.promise().query('UPDATE petfeeders SET feederName = ? WHERE feederID = ?', [newName, dash[0].feederID]);
+        }
+
+        res.send(`<script>alert('✅ เปลี่ยนชื่อเครื่องสำเร็จ!'); window.location.href='/dashboard/${dashboardID}';</script>`);
+
+    } catch (err) {
+        console.error(err);
+        res.send("<script>alert('เกิดข้อผิดพลาด'); window.history.back();</script>");
+    }
+});
+
+
+router.post('/dashboard/:id/delete-feeder', isLoggedIn, async (req, res) => {
+    const dashboardID = req.params.id;
+    const userId = req.session.user.userID;
+    const { password } = req.body;
+
+    try {
+        const [users] = await db.promise().query('SELECT password FROM users WHERE userID = ?', [userId]);
+        const match = await bcrypt.compare(password, users[0].password);
+        
+        if (!match) {
+            return res.send("<script>alert('❌ รหัสผ่านไม่ถูกต้อง'); window.history.back();</script>");
+        }
+
+        const [dash] = await db.promise().query('SELECT feederID FROM dashboards WHERE dashboardID = ? AND userID = ?', [dashboardID, userId]);
+        if (dash.length === 0) return res.redirect('/index');
+        const feederID = dash[0].feederID;
+
+        await db.promise().query('DELETE FROM feedconfig WHERE feederID = ?', [feederID]);
+
+        await db.promise().query(
+            'UPDATE petfeeders SET userID = NULL, isActive = 0, feederName = ? WHERE feederID = ?', 
+            ['New Device', feederID] 
+        );
+
+        await db.promise().query('DELETE FROM dashboards WHERE dashboardID = ?', [dashboardID]);
+
+        res.send(`<script>alert('🗑️ ลบเครื่องให้อาหารออกจากบัญชีแล้ว'); window.location.href='/index';</script>`);
+
+    } catch (err) {
+        console.error(err);
+        res.send("<script>alert('เกิดข้อผิดพลาดในการลบ'); window.history.back();</script>");
     }
 });
 

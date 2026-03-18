@@ -16,8 +16,9 @@
     box-shadow: 0 2px 8px rgba(92, 92, 92, 0.219);
 }
 
-.bgcolor {
-    background-color: #f8f8f8bd;
+body, body.bgcolor { 
+    background-color: #f4f7f6; 
+    font-family: 'Prompt', sans-serif;
 }
 
 .login-btn {
@@ -81,4 +82,70 @@
 .admin-btn:hover {
     background-color: rgb(224, 59, 59);
     box-shadow: 0 2px 8px rgb(112, 63, 63);
+}
+
+/* card */
+.card-modern { 
+    border: none; 
+    border-radius: 15px; 
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05); 
+    transition: transform 0.2s; 
+}
+.card-modern:hover { 
+    transform: translateY(-3px); 
+}
+
+/* dashboard */
+.icon-box { 
+    width: 48px; height: 48px; 
+    border-radius: 12px; 
+    display: flex; align-items: center; justify-content: center; 
+    font-size: 24px; 
+}
+.bg-food { background-color: #fff3e0; color: #ff9800; }
+.bg-water { background-color: #e3f2fd; color: #2196f3; }
+.log-scroll { max-height: 250px; overflow-y: auto; scrollbar-width: thin; }
+
+/* index */
+.hero-section {
+    background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);
+    border-radius: 20px;
+    padding: 4rem 2rem;
+    text-align: center;
+    box-shadow: 0 10px 30px rgba(33, 150, 243, 0.1);
+}
+
+/* การ์ดแสดงเครื่องให้อาหาร */
+.pet-card {
+    border: none;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    transition: all 0.3s ease;
+    background-color: #fff;
+    overflow: hidden;
+    position: relative;
+}
+.pet-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+}
+/* แถบสีด้านบนของการ์ด */
+.pet-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 5px;
+    background: linear-gradient(90deg, #ff9800, #2196f3);
+}
+
+/* กล่องเพิ่มเครื่องใหม่ตอนที่ยังไม่มีเครื่อง (Empty State) */
+.empty-state {
+    padding: 4rem 2rem;
+    text-align: center;
+    background-color: #fff;
+    border-radius: 15px;
+    border: 2px dashed #ced4da;
+    transition: border-color 0.3s ease;
+}
+.empty-state:hover { 
+    border-color: #0d6efd; 
 }

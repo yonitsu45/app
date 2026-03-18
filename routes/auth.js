@@ -5,7 +5,6 @@ const router = express.Router();
 const crypto = require('crypto');
 const mailer = require('../middleware/mailer');
 const { isLoggedIn } = require('../middleware/isLogged');
-const { error } = require('console');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -102,23 +101,6 @@ router.get('/logout', (req, res) => {
   });
 });
 
-router.get('/dashboardcam', isLoggedIn, (req, res) => {
-  res.render('dashboardcam', {
-    user: req.session.user,
-    dashboard: {
-            feederID: 1, // ใส่ ID ให้ตรงกับที่ ESP32 คุณเชื่อมต่อ (ดูใน Database)
-            dashboardName: "Camera Test"
-        }
-  });
-});
-
-router.get('/testboard', isLoggedIn, (req, res) => {
-  res.render('testboard', {
-    user: req.session.user
-  });
-});
-
-// routes/pages.js หรือไฟล์ router ที่คุณใช้
 router.get('/admindashboard', isLoggedIn, async (req, res) => {
     // admin checking
     if (req.session.user.urole !== 'admin') {
@@ -138,7 +120,6 @@ router.get('/admindashboard', isLoggedIn, async (req, res) => {
         `;
         const [feeders] = await db.promise().query(sqlFeeders);
 
-        // 3. ส่งข้อมูลไปหน้า EJS
         res.render('admindashboard', {
             user: req.session.user, 
             allUsers: users,
@@ -151,32 +132,29 @@ router.get('/admindashboard', isLoggedIn, async (req, res) => {
     }
 });
 
+//user edit
 router.post('/user/update', async (req, res) => {
-    // 1. เช็ค Login
     if (!req.session.user) {
         return res.redirect('/login');
     }
 
-    // 2. รับค่าจากฟอร์ม (รวมถึง email)
     const { targetID, username, email, newPassword, confirmPassword } = req.body;
     const currentUser = req.session.user;
 
-    // 🔥🔥🔥 3. ส่วนที่หายไป: คำนวณว่ากำลังแก้ ID ไหน? 🔥🔥🔥
-    let idToUpdate; // ประกาศตัวแปรมารรอไว้ก่อน
+    let idToUpdate;
     
+    //admin checking
     if (currentUser.urole === 'admin' && targetID) {
-        // ถ้าเป็น Admin และมี targetID ส่งมา -> แก้ให้คนอื่น
         idToUpdate = targetID;
     } else {
-        // ถ้าเป็น User ธรรมดา หรือ Admin แก้ของตัวเอง -> ใช้ ID ตัวเอง
         idToUpdate = currentUser.userID; 
     }
 
-    // อัปเดต username และ email
+    //username and email update
     let sql = "UPDATE users SET username = ?, email = ?";
     let params = [username, email];
 
-    // 5. เช็คเรื่องเปลี่ยนรหัสผ่าน
+    //password change check
     if (newPassword || confirmPassword) {
         if (newPassword !== confirmPassword) {
             return res.send("<script>alert('รหัสผ่านไม่ตรงกัน'); window.history.back();</script>");
@@ -191,24 +169,23 @@ router.post('/user/update', async (req, res) => {
         params.push(hashedPassword);
     }
 
-    // 6. ใส่เงื่อนไข WHERE (ใช้ idToUpdate ที่คำนวณไว้ข้อ 3)
+    //checking id to update
     sql += " WHERE userID = ?";
     params.push(idToUpdate);
 
-    // 7. ยิงลง Database
+    //update to db
     db.query(sql, params, (err, result) => {
         if (err) {
             console.error(err);
             return res.send("<script>alert('เกิดข้อผิดพลาด: Email อาจจะซ้ำหรือระบบมีปัญหา'); window.history.back();</script>");
         }
 
-        // 8. อัปเดต Session (ถ้าแก้ของตัวเอง)
+        //update session
         if (idToUpdate == currentUser.userID) {
             req.session.user.username = username;
             req.session.user.email = email; // อัปเดต email ใน session ด้วย
         }
 
-        // 9. ส่งกลับหน้าเดิม
         if (currentUser.urole === 'admin' && idToUpdate != currentUser.userID) {
             res.redirect('/admindashboard');
         } else {
@@ -217,6 +194,55 @@ router.post('/user/update', async (req, res) => {
     });
 });
 
+//user delete
+router.post('/user/delete', async (req, res) => {
+    if (!req.session.user || req.session.user.urole !== 'admin') {
+        return res.redirect('/login');
+    }
+
+    const { targetUserID, password } = req.body;
+    const adminID = req.session.user.userID;
+
+    try {
+        //prevent admin self remove
+        if (targetUserID == adminID) {
+            return res.send("<script>alert('❌ ไม่สามารถลบบัญชีตัวเองผ่านช่องทางนี้ได้'); window.history.back();</script>");
+        }
+
+        //password checking
+        const [admins] = await db.promise().query('SELECT password FROM users WHERE userID = ?', [adminID]);
+        const match = await bcrypt.compare(password, admins[0].password);
+        
+        if (!match) {
+            return res.send("<script>alert('❌ รหัสผ่าน Admin ไม่ถูกต้อง'); window.history.back();</script>");
+        }
+
+        //feeder with no owner
+        const [userFeeders] = await db.promise().query('SELECT feederID FROM petfeeders WHERE userID = ?', [targetUserID]);
+        for (let i = 0; i < userFeeders.length; i++) {
+            let fID = userFeeders[i].feederID;
+            await db.promise().query("DELETE FROM feedconfig WHERE feederID = ?", [fID]);
+            await db.promise().query(
+                "UPDATE petfeeders SET userID = NULL, isActive = 0, feederName = 'Smart Pet Feeder' WHERE feederID = ?", 
+                [fID]
+            );
+        }
+
+        //remove dashboard
+        await db.promise().query("DELETE FROM dashboards WHERE userID = ?", [targetUserID]);
+
+        //remove user
+        await db.promise().query("DELETE FROM users WHERE userID = ?", [targetUserID]);
+
+        res.send(`<script>alert('🗑️ ลบผู้ใช้งานและเคลียร์เครื่องเรียบร้อยแล้ว'); window.location.href='/admindashboard';</script>`);
+
+    } catch (err) {
+        console.error("Delete User Error:", err);
+        res.send(`<script>alert('เกิดข้อผิดพลาดในการลบผู้ใช้: ${err.message}'); window.history.back();</script>`);
+    }
+});
+
+//feeder edit
 router.post('/feeder/update', async (req, res) => {
     //admin checking
     if (!req.session.user || req.session.user.urole !== 'admin') {
@@ -275,18 +301,49 @@ router.post('/feeder/update', async (req, res) => {
     }
 });
 
+//feeder deleting
+router.post('/feeder/delete', async (req, res) => {
+    if (!req.session.user || req.session.user.urole !== 'admin') {
+        return res.redirect('/login');
+    }
+
+    const { feederID, password } = req.body;
+    const adminID = req.session.user.userID;
+
+    try {
+        const [admins] = await db.promise().query('SELECT password FROM users WHERE userID = ?', [adminID]);
+        const match = await bcrypt.compare(password, admins[0].password);
+        
+        if (!match) {
+            return res.send("<script>alert('❌ รหัสผ่าน Admin ไม่ถูกต้อง'); window.history.back();</script>");
+        }
+
+        await db.promise().query("DELETE FROM feedconfig WHERE feederID = ?", [feederID]); 
+        await db.promise().query("DELETE FROM feedlogs WHERE feederID = ?", [feederID]);   
+        await db.promise().query("DELETE FROM dashboards WHERE feederID = ?", [feederID]); 
+        await db.promise().query("DELETE FROM petfeeders WHERE feederID = ?", [feederID]);
+
+        res.send(`<script>alert('🗑️ ลบเครื่องให้อาหารออกจากระบบถาวรเรียบร้อยแล้ว'); window.location.href='/admindashboard';</script>`);
+
+    } catch (err) {
+        console.error("Delete Feeder Error:", err);
+        res.send(`<script>alert('เกิดข้อผิดพลาดในการลบ: ${err.message}'); window.history.back();</script>`);
+    }
+});
+
+//feeder level api
 router.get('/api/feeder/status/:id', async (req, res) => {
     try {
         const feederID = req.params.id;
         
-        // ดึงค่าล่าสุดจาก Database
+        //pull from db
         const [rows] = await db.promise().query(
-            "SELECT foodlvl AS foodLevel, waterlvl AS waterLevel, isActive FROM petfeeders WHERE feederID = ?", 
+            "SELECT foodlvl AS foodLevel, waterlvl AS waterLevel, bowl_food, bowl_water, isActive FROM petfeeders WHERE feederID = ?",
             [feederID]
         );
 
         if (rows.length > 0) {
-            // ส่งค่ากลับไปเป็น JSON
+            //json
             res.json(rows[0]); 
         } else {
             res.status(404).json({ error: "Not found" });
@@ -298,37 +355,36 @@ router.get('/api/feeder/status/:id', async (req, res) => {
     }
 });
 
-//////////
+//forgot password
 router.get('/forgot-password', (req, res) => {
-    res.render('forgot-password', { message: null }); // ต้องสร้างไฟล์ forgot-password.ejs ด้วยนะ
+    res.render('forgot-password', { message: null });
 });
 
-// 2. รับอีเมลแล้วส่งลิงก์ (POST)
 router.post('/forgot-password', async (req, res) => {
     const { email } = req.body;
 
     try {
-        // เช็คว่ามีอีเมลนี้ไหม
+        //mail checking
         const [users] = await db.promise().query("SELECT * FROM users WHERE email = ?", [email]);
         if (users.length === 0) {
             return res.render('forgot-password', { message: 'ไม่พบอีเมลนี้ในระบบ' });
         }
 
-        // สร้าง Token มั่วๆ ขึ้นมา
+        //create random token
         const token = crypto.randomBytes(32).toString('hex');
-        // ตั้งเวลาหมดอายุ 1 ชั่วโมง
-        const expireTime = new Date(Date.now() + 3600000); // 1 hour
+        //expire in 1 hr
+        const expireTime = new Date(Date.now() + 3600000); //1hr
 
-        // บันทึก Token ลง DB
+        //save token
         await db.promise().query(
             "UPDATE users SET reset_token = ?, reset_expires = ? WHERE email = ?", 
             [token, expireTime, email]
         );
 
-        // ส่งเมล
+        //mail sending
         await mailer.sendResetPasswordEmail(email, token);
 
-        res.render('forgot-password', { message: 'ส่งลิงก์กู้คืนรหัสผ่านไปทางอีเมลแล้ว กรุณาเช็ค Inbox หรือ Junk Mail', error: false});
+        res.render('forgot-password', { message: 'ส่งลิงก์กู้คืนรหัสผ่านไปทางอีเมลแล้ว กรุณาเช็ค Inbox หรือ Junk Mail ✉️', error: false});
 
     } catch (err) {
         console.error(err);
@@ -336,10 +392,11 @@ router.post('/forgot-password', async (req, res) => {
     }
 });
 
+//reset passowrd
 router.get('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
     
-    // เช็คว่า Token ถูกต้องและยังไม่หมดอายุ
+    //token expire and valid checking
     const [users] = await db.promise().query(
         "SELECT * FROM users WHERE reset_token = ? AND reset_expires > NOW()", 
         [token]
@@ -352,6 +409,7 @@ router.get('/reset-password/:token', async (req, res) => {
     res.render('reset-password', { token: token, message: null }); // ต้องสร้างไฟล์ reset-password.ejs
 });
 
+//update new password
 router.post('/reset-password/:token', async (req, res) => {
     const { token } = req.params;
     const { password, passwordCon } = req.body;
@@ -360,16 +418,16 @@ router.post('/reset-password/:token', async (req, res) => {
         return res.render('reset-password', { token, message: 'รหัสผ่านไม่ตรงกัน' });
     }
 
-    // Hash Password ใหม่ (อย่าลืม require bcrypt)
+    //hash new pass
     const hashedPassword = await bcrypt.hash(password, 8);
 
-    // อัปเดตรหัสและลบ Token ทิ้ง
+    //update pass and remove token
     await db.promise().query(
         "UPDATE users SET password = ?, reset_token = NULL, reset_expires = NULL WHERE reset_token = ?", 
         [hashedPassword, token]
     );
 
-    res.redirect('/login');
+    res.render('reset-password', { token: token, message: 'เปลี่ยนรหัสผ่านเรียบร้อย สามารถเข้าสู่ระบบได้ทันที ✅', error: false});
 });
 
 module.exports = router;

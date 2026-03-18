@@ -1,9 +1,8 @@
-const db = require('../db'); // ถอยกลับไปหา db.js
+const db = require('../db');
 
 module.exports = async (req, res, next) => {
-    // 1. ถ้ายังไม่ล็อกอิน ข้ามไปเลย
     if (!req.session.user) {
-        res.locals.alerts = []; // ส่งอาเรย์ว่างไป กัน EJS พัง
+        res.locals.alerts = [];
         return next();
     }
 
@@ -21,7 +20,6 @@ module.exports = async (req, res, next) => {
         
         const [rows] = await db.promise().query(sql, [userID]);
 
-        // 3. ส่งข้อมูลไปให้ EJS ทุกหน้าใช้ได้เลย (ผ่านตัวแปร res.locals)
         res.locals.alerts = rows; 
         next();
 

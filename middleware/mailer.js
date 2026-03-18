@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// ตั้งค่าคนส่ง (ใช้ Gmail ของเรา)
+//sender
 const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
@@ -9,7 +9,6 @@ const transporter = nodemailer.createTransport({
     }
 });
 
-// ฟังก์ชันส่งอีเมลแจ้งเตือน (อาหาร/น้ำ หมด)
 exports.sendAlertEmail = async (userEmail, subject, text) => {
     try {
         await transporter.sendMail({
@@ -28,7 +27,6 @@ exports.sendAlertEmail = async (userEmail, subject, text) => {
     }
 };
 
-// ฟังก์ชันส่งลิงก์รีเซ็ตรหัสผ่าน
 exports.sendResetPasswordEmail = async (userEmail, token) => {
     const resetLink = `https://ecp-smartpetfeeder.site/reset-password/${token}`;
 

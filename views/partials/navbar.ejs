@@ -49,12 +49,13 @@
                     <% } %>
                 </ul>
 
-                <a class="mx-2 login-btn" href="/profile">
+                <a class="mx-2 login-btn d-flex align-items-center" href="/profile">
                     <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="16" height="16">
-                    <span class="ms-1"><%= user.username %></span>
+                    <span class="ms-1 text-truncate" style="max-width: 50px;"><%= user.username %></span>
                 </a>
                 <form action="/logout" method="GET" class="ms-1 mb-0">
                     <button type="submit" class="register-btn">
+                        <span>Logout</span>
                         <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16" style="filter: invert(1);">
                     </button>
                 </form>

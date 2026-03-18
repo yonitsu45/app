@@ -14,9 +14,7 @@ router.get('/index', (req, res) => {
 router.get('/login', (req, res) => res.render('login'));
 router.get('/register', (req, res) => res.render('register', { message: '' }));
 router.get('/profile', (req, res) => res.render('profile'));
-router.get('/dashboardcam', (req, res) => res.render('dashboardcam'));
 router.get('/dashboard', (req, res) => res.render('dashboard'));
-router.get('/testboard', (req, res) => res.render('testboard'));
 router.get('/admindashboard', (req, res) => res.render('admindashboard'));
 
 module.exports = router;

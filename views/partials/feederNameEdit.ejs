@@ -1,0 +1,40 @@
+<div class="modal fade" id="settingsModal" tabindex="-1" aria-labelledby="settingsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-dark text-white">
+                    <h5 class="modal-title" id="settingsModalLabel">⚙️ ตั้งค่าเครื่องให้อาหาร</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    
+                    <div class="card mb-3 border-primary shadow-sm">
+                        <div class="card-header bg-primary text-white fw-bold">เปลี่ยนชื่อเครื่อง</div>
+                        <div class="card-body">
+                            <form action="/dashboard/<%= dashboard.dashboardID %>/edit" method="POST">
+                                <div class="mb-3">
+                                    <label class="form-label">ชื่อแดชบอร์ด/เครื่องให้อาหาร</label>
+                                    <input type="text" name="newName" class="form-control" value="<%= dashboard.dashboardName %>" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary w-100 fw-bold">บันทึกชื่อใหม่</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <div class="card border-danger shadow-sm">
+                        <div class="card-header bg-danger text-white fw-bold">ลบเครื่องให้อาหาร</div>
+                        <div class="card-body text-center">
+                            <p class="text-danger small">หากลบแล้ว เครื่องจะถูกตัดการเชื่อมต่อจากบัญชีของคุณ และลบตารางเวลาทั้งหมดทิ้งทันที!</p>
+                            <form action="/dashboard/<%= dashboard.dashboardID %>/delete-feeder" method="POST" onsubmit="return confirm('⚠️ คำเตือน: คุณแน่ใจหรือไม่ว่าจะลบเครื่องนี้ออกจากบัญชีของคุณ?');">
+                                <div class="mb-3 text-start">
+                                    <label class="form-label text-danger">ยืนยันรหัสผ่านเพื่อลบ</label>
+                                    <input type="password" name="password" class="form-control border-danger" required placeholder="รหัสผ่านเข้าสู่ระบบ">
+                                </div>
+                                <button type="submit" class="btn btn-danger w-100 fw-bold">🗑️ ยืนยันการลบเครื่อง</button>
+                            </form>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
