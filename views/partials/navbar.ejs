@@ -1,4 +1,14 @@
 <link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    const themeSwal = Swal.mixin({
+        customClass: {
+            confirmButton: 'btn btn-primary rounded-pill px-4 mx-2 shadow-sm',
+            cancelButton: 'btn btn-outline-secondary rounded-pill px-4 mx-2'
+        },
+        buttonsStyling: false
+    });
+</script>
 
 <nav class="navbar navbar-expand-md justify-content-center p-4 custombar mb-5">
     <div class="container-fluid position-relative">
@@ -9,38 +19,31 @@
         <a class="navbar-brand position-absolute start-50 translate-middle-x brand-txt" href="/index">ECP SMART PET FEEDER</a>
 
         <div class="d-none d-md-flex align-items-center">
+            <a href="/info" class="badge bg-light rounded-pill text-dark text-decoration-none">?</a>
             <% if (typeof user !== 'undefined' && user) { %>
-                <% if (user.urole == 'admin') { %>
-                    <a href="/admindashboard" class="admin-btn mx-2">
-                        <img src="https://www.svgrepo.com/show/447556/admin-network.svg" alt="admin-btn" width="15" height="15">
-                    </a>
-                <% } %>
-
-                <!-- alert -->
-                <a class="login-btn dropdown mx-2" href="#" role="button" data-bs-toggle="dropdown">
-                    <img src="https://www.svgrepo.com/show/532089/bell-alt.svg" width="16px" height="16px">
-                    
+                <a class="btn btn-light rounded-circle position-relative mx-2 border shadow-sm" href="#" role="button" data-bs-toggle="dropdown" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                    <i class="fa-regular fa-bell text-dark"></i>
                     <% if (typeof alerts !== 'undefined' && alerts.length > 0) { %>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 0.65rem;">
                             <%= alerts.length %>
                         </span>
                     <% } %>
                 </a>
-                <ul class="dropdown-menu dropdown-menu-end shadow" style="width: 300px;">
-                    <li><h6 class="dropdown-header">การแจ้งเตือน</h6></li>
-                    
+                
+                <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2" style="width: 300px;">
+                    <li><h6 class="dropdown-header fw-bold">การแจ้งเตือน</h6></li>
                     <% if (alerts.length === 0) { %>
-                        <li><a class="dropdown-item text-muted text-center" href="#">ไม่มีการแจ้งเตือน</a></li>
+                        <li><a class="dropdown-item text-muted text-center py-3" href="#">ไม่มีการแจ้งเตือน</a></li>
                     <% } else { %>
                         <% alerts.forEach(feeder => { %>
                             <li>
-                                <a class="dropdown-item" href="/dashboard/<%= feeder.dashboardID %>">
-                                    <small class="fw-bold d-block"><%= feeder.feederName %></small>
+                                <a class="dropdown-item py-2" href="/dashboard/<%= feeder.dashboardID %>">
+                                    <small class="fw-bold d-block text-dark"><%= feeder.feederName %></small>
                                     <% if (feeder.foodlvl < 20) { %>
-                                        <span class="text-danger" style="font-size: 0.85rem;">⚠️ อาหารต่ำ (<%= feeder.foodlvl %>%)</span><br>
+                                        <span class="text-danger" style="font-size: 0.85rem;"><i class="fa-solid fa-triangle-exclamation me-1"></i>อาหารต่ำ (<%= feeder.foodlvl %>%)</span><br>
                                     <% } %>
                                     <% if (feeder.waterlvl < 20) { %>
-                                        <span class="text-danger" style="font-size: 0.85rem;">💧 น้ำต่ำ (<%= feeder.waterlvl %>%)</span>
+                                        <span class="text-danger" style="font-size: 0.85rem;"><i class="fa-solid fa-droplet me-1"></i>น้ำต่ำ (<%= feeder.waterlvl %>%)</span>
                                     <% } %>
                                 </a>
                             </li>
@@ -49,19 +52,42 @@
                     <% } %>
                 </ul>
 
-                <a class="mx-2 login-btn d-flex align-items-center" href="/profile">
-                    <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="16" height="16">
-                    <span class="ms-1 text-truncate" style="max-width: 50px;"><%= user.username %></span>
-                </a>
-                <form action="/logout" method="GET" class="ms-1 mb-0">
-                    <button type="submit" class="register-btn">
-                        <span>Logout</span>
-                        <img src="https://www.svgrepo.com/show/521174/logout.svg" alt="logout" width="16" height="16" style="filter: invert(1);">
+                <div class="dropdown ms-2">
+                    <button class="btn btn-white border rounded-pill shadow-sm dropdown-toggle d-flex align-items-center px-3 py-2" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="https://www.svgrepo.com/show/526700/user-circle.svg" alt="profile" width="20" height="20">
+                        <span class="ms-2 text-truncate fw-bold text-dark" style="max-width: 120px;"><%= user.username %></span>
                     </button>
-                </form>
+                    
+                    <ul class="dropdown-menu dropdown-menu-end shadow border-0 mt-2">
+                        <li>
+                            <a class="dropdown-item py-2" href="/profile">
+                                <i class="fa-regular fa-id-card text-primary me-2"></i>My Profile
+                            </a>
+                        </li>
+                        
+                        <% if (user.urole == 'admin') { %>
+                            <li>
+                                <a class="dropdown-item py-2" href="/admindashboard">
+                                    <i class="fa-solid fa-shield-halved text-success me-2"></i>Admin Dashboard
+                                </a>
+                            </li>
+                        <% } %>
+                        
+                        <li><hr class="dropdown-divider"></li>
+                        
+                        <li>
+                            <form action="/logout" method="GET" class="m-0" onsubmit="return confirm('ยืนยันที่จะออกจากระบบ?');">
+                                <button type="submit" class="dropdown-item py-2 text-danger fw-bold">
+                                    <i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Logout
+                                </button>
+                            </form>
+                        </li>
+                    </ul>
+                </div>
+
             <% } else { %>
-                <a href="/login" class="login-btn mx-3">Sign In</a>
-                <a href="/register" class="register-btn">Sign Up</a>
+                <a href="/login" class="btn login-btn rounded-pill px-4 mx-2">Sign In</a>
+                <a href="/register" class="btn register-btn rounded-pill px-4">Sign Up</a>
             <% } %>
         </div>
 
@@ -102,6 +128,8 @@
     </div>
 </nav>
 
+
+<!-- hamburger -->
 <div class="offcanvas offcanvas-start" tabindex="-1" id="offcanvas" aria-labelledby="offcanvasExampleLabel">
     <div class="offcanvas-header">
         <h5 class="offcanvas-title">Menu</h5>
@@ -114,7 +142,29 @@
                 <div id="dashboardList">
                     <% if (dashboards.length > 0) { %>
                         <% dashboards.forEach(d => { %>
-                            <a href="/dashboard/<%= d.id %>" class="btn btn-outline-secondary w-100 mb-2 text-start"><%= d.name %></a>
+                            <!-- <a href="/dashboard/<%= d.id %>" class="btn btn-outline-secondary w-100 mb-2 text-start"><span><%= d.name %></span> <div><i class="text-warning fa-solid fa-bone"></i> <%= d.foodlvl %> % / <i class="text-primary fa-solid fa-droplet"></i> <%= d.waterlvl %> %</div></a> -->
+                            <a href="/dashboard/<%= d.id %>" class="text-decoration-none d-block pet-card">
+                                <div class="card-body px-2 text-center">
+                                    <div class="row mt-4">
+                                        <div class="col-md-6 mt-3 overflow-hidden">
+                                            <h5 class="fw-bold text-dark mb-3"><%= d.name %></h5>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <div class="d-flex justify-content-around rounded-3 p-2 mb-3">
+                                                <div class="text-center">
+                                                    <small class="text-muted d-block"><i class="fa-solid fa-bone text-warning me-1"></i>อาหาร</small>
+                                                    <strong class="text-dark fs-5"><%= d.foodlvl %>%</strong>
+                                                </div>
+                                                <div class="border-end"></div>
+                                                <div class="text-center">
+                                                    <small class="text-muted d-block"><i class="fa-solid fa-droplet text-primary me-1"></i>น้ำ</small>
+                                                    <strong class="text-dark fs-5"><%= d.waterlvl %>%</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
                         <% }) %>
                     <% } else { %>
                         <p class="text-muted small">ยังไม่มี Dashboard</p>

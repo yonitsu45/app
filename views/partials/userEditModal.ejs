@@ -37,7 +37,7 @@
             <hr class="m-0 border-danger border-2 opacity-50">
 
             <div class="modal-body bg-light">
-                <form action="/user/delete" method="POST" onsubmit="return confirm('⚠️ คำเตือน: ยืนยันที่จะลบ User นี้ พร้อมเคลียร์เครื่องที่เชื่อมต่ออยู่ทั้งหมดหรือไม่?');">
+                <form action="/user/delete" method="POST" onsubmit="confirmDeleteUser(event, this)">
                     <input type="hidden" name="targetUserID" id="deleteTargetUserID">
                     
                     <label class="form-label text-danger fw-bold">ลบบัญชีผู้ใช้งาน</label>
@@ -50,3 +50,24 @@
             </div>
     </div>
 </div>
+
+<script>
+function confirmDeleteUser(event, formElement) {
+    event.preventDefault(); 
+
+    themeSwal.fire({
+        icon: 'warning',
+        title: 'ยืนยันการลบ User?',
+        text: '⚠️ คำเตือน: ยืนยันที่จะลบ User นี้ พร้อมเคลียร์เครื่องที่เชื่อมต่ออยู่ทั้งหมดหรือไม่?',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ใช่, ลบทิ้งเลย!',
+        cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            formElement.submit();
+        }
+    });
+}
+</script>

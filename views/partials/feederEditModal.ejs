@@ -38,7 +38,7 @@
             <hr class="m-0 border-danger border-2 opacity-50">
 
             <div class="modal-body bg-light">
-                <form action="/feeder/delete" method="POST" onsubmit="return confirm('⚠️ ยืนยันที่จะลบเครื่องนี้ออกจากระบบถาวรใช่หรือไม่?');">
+                <form action="/feeder/delete" method="POST" onsubmit="confirmDeleteFeeder(event, this)">
                     <input type="hidden" name="feederID" id="deleteTargetFeederID">
                     
                     <label class="form-label text-danger fw-bold">ลบเครื่องให้อาหารถาวร</label>
@@ -51,3 +51,24 @@
         </div>
     </div>
 </div>
+
+<script>
+function confirmDeleteFeeder(event, formElement) {
+    event.preventDefault(); 
+
+    themeSwal.fire({
+        icon: 'warning',
+        title: 'ยืนยันการลบเครื่อง?',
+        text: '⚠️ ยืนยันที่จะลบเครื่องนี้ออกจากระบบถาวรใช่หรือไม่? (ข้อมูลตั้งเวลาและประวัติจะถูกลบทิ้งทั้งหมด)',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ใช่, ลบทิ้งเลย!',
+        cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            formElement.submit();
+        }
+    });
+}
+</script>

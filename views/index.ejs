@@ -1,54 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="https://i.ibb.co/5hZBy3pm/mochi-64x64.png">
     <link rel="stylesheet" href="/css/style.css">
-    <link rel="icon" href="https://ibb.co/N2RZPqD5">
-    <title>ECP SMART PET FEEDER</title>
+    <title>ECP SMART PET FEEDER | Home</title>
 </head>
-<body class="bgcolor">
+<body>
     <%- include('partials/navbar') %>
 
-    <div class="container mt-4">
+    <div class="container py-5">
+        
         <% if (typeof message !== 'undefined' && message) { %>
-            <div class="alert alert-success">
-                <p><%= message %></p>
+            <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+                <i class="fa-solid fa-circle-check me-2"></i><%= message %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         <% } %>
-        <div class="card">
-            <div class="card-body" style="border: 2px; border-color: black;">
 
-                <% if (typeof user !== 'undefined' && user) { %>
-                    <p>สวัสดี <%= user.username %></p>
-                    <hr>
-                        <% if (dashboards.length > 0) { %>
-                            <div class="row">
-                                <% dashboards.forEach(d => { %>
-                                    <div class="col-md-4 mb-3">
-                                        <a href="/dashboard/<%= d.id %>" class="btn btn-secondary mb-2 d-block">
-                                            <div>
-                                                <div class="card-body overflow-hidden">
-                                                    <h5 class="text-light card-title"><%= d.name %></h5>
-                                                </div>
-                                            </div>
-                                        </a>
-                                    </div>
-                                <% }) %>
-                                <a class="btn btn-primary mt-3 mx-2 d-block" data-bs-toggle="modal" data-bs-target="#addDashboard">+ เพิ่ม Dashboard</a>
-                            </div>
-                        <% } else { %>
-                            <p class="text-muted">ยังไม่มี Dashboard</p>
-                        <% } %>
-                <% } else { %>
-                    <p>คุณยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบ หรือสมัครสมาชิค</p>
-                <% } %>
+        <% if (typeof user !== 'undefined' && user) { %>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2 class="fw-bold mb-0 text-dark">เครื่องให้อาหารของคุณ</h2>
+                    <p class="text-muted mb-0">สวัสดี <strong class="text-primary"><%= user.username %></strong>, พร้อมดูแลสัตว์เลี้ยงหรือยัง?</p>
+                </div>
+                <button class="btn btn-primary rounded-pill shadow-sm px-4" data-bs-toggle="modal" data-bs-target="#addDashboard">
+                    <i class="fa-solid fa-plus me-2"></i>เพิ่มเครื่องใหม่
+                </button>
             </div>
-        </div>
+
+            <% if (dashboards.length > 0) { %>
+                <div class="row g-4">
+                    <% dashboards.forEach(d => { %>
+                        <div class="col-md-6 col-lg-4">
+                            <a href="/dashboard/<%= d.id %>" class="text-decoration-none d-block pet-card h-100">
+                                <div class="card-body p-4 text-center">
+                                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 70px; height: 70px;">
+                                        <i class="fa-solid fa-paw fs-1 text-primary opacity-75"></i>
+                                    </div>
+                                    
+                                    <h5 class="fw-bold text-dark mb-3 overflow-hidden"><%= d.name %></h5>
+                                    
+                                    <div class="d-flex justify-content-around bg-light rounded-3 p-2 mb-3">
+                                        <div class="text-center">
+                                            <small class="text-muted d-block"><i class="fa-solid fa-bone text-warning me-1"></i>อาหาร</small>
+                                            <strong class="text-dark fs-5"><%= d.foodlvl %>%</strong>
+                                        </div>
+                                        <div class="border-end"></div>
+                                        <div class="text-center">
+                                            <small class="text-muted d-block"><i class="fa-solid fa-droplet text-primary me-1"></i>น้ำ</small>
+                                            <strong class="text-dark fs-5"><%= d.waterlvl %>%</strong>
+                                        </div>
+                                    </div>
+
+                                    <% if (d.isActive == 1) { %>
+                                        <span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2 rounded-pill w-100">
+                                            <i class="fa-solid fa-circle-play me-1"></i> กำลังทำงาน
+                                        </span>
+                                    <% } else { %>
+                                        <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary px-3 py-2 rounded-pill w-100">
+                                            <i class="fa-solid fa-circle-pause me-1"></i> หยุดทำงาน
+                                        </span>
+                                    <% } %>
+                                </div>
+                            </a>
+                        </div>
+                    <% }) %>
+                </div>
+            <% } else { %>
+                <div class="empty-state cursor-pointer" data-bs-toggle="modal" data-bs-target="#addDashboard">
+                    <div class="bg-light rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="fa-solid fa-box-open fs-1 text-muted"></i>
+                    </div>
+                    <h4 class="text-dark fw-bold">คุณยังไม่ได้เพิ่มเครื่องให้อาหาร</h4>
+                    <p class="text-muted">เริ่มต้นใช้งานโดยการเพิ่มเครื่องให้อาหารสัตว์เลี้ยงของคุณเข้าสู่ระบบ</p>
+                    <button class="btn btn-outline-primary rounded-pill px-4 mt-2">คลิกเพื่อเพิ่มเครื่องแรกของคุณ</button>
+                </div>
+            <% } %>
+
+        <% } else { %>
+            <div class="hero-section">
+                <i class="fa-solid fa-shield-cat fs-1 text-primary mb-3" style="font-size: 4rem !important;"></i>
+                <h1 class="fw-bold text-dark mb-3">ยินดีต้อนรับสู่</h1>
+                <h1 class="fw-bold text-dark mb-3">ECP SMART PET FEEDER</h1>
+                <p class="text-secondary fs-5 mb-4 max-w-50 mx-auto">
+                    ระบบจัดการเครื่องให้อาหารสัตว์เลี้ยงอัจฉริยะ ควบคุมผ่านอินเทอร์เน็ต ดูภาพสด และตั้งเวลาอัตโนมัติได้จากทุกที่
+                </p>
+                <div>
+                    <a href="/login" class="btn btn-primary btn-lg rounded-pill shadow-sm px-5 me-2 mb-2">เข้าสู่ระบบ</a>
+                    <a href="/register" class="btn btn-outline-primary btn-lg rounded-pill px-5 mb-2 bg-white">สมัครสมาชิก</a>
+                </div>
+            </div>
+        <% } %>
+
     </div>
-    <!-- modal -->
+
     <%- include('partials/namingModal') %>
 
     <% if (typeof autoRedirect !== 'undefined' && autoRedirect) { %>

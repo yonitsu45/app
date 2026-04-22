@@ -6,6 +6,25 @@ const crypto = require('crypto');
 const mailer = require('../middleware/mailer');
 const { isLoggedIn } = require('../middleware/isLogged');
 
+function sendAlert(res, icon, title, text, redirectUrl = 'back') {
+    res.send(`
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; } .swal2-popup { border-radius: 15px !important; }</style>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                Swal.fire({
+                    icon: '${icon}', title: '${title}', text: '${text}',
+                    confirmButtonColor: '#0d6efd', confirmButtonText: 'ตกลง',
+                    allowOutsideClick: false
+                }).then(() => {
+                    ${redirectUrl === 'back' ? 'window.history.back();' : `window.location.href='${redirectUrl}';`}
+                });
+            });
+        </script>
+    `);
+}
+
 // Register
 router.post('/register', async (req, res) => {
   const { username, email, password, passwordCon } = req.body;
@@ -86,10 +105,49 @@ router.post('/login', (req, res) => {
 });
 
 //Profile
-router.get('/profile', isLoggedIn, (req, res) => {
-  res.render('profile', {
-    user: req.session.user
-  });
+router.get('/profile', isLoggedIn, async (req, res) => {
+    if (!req.session.user) {
+        return res.redirect('/login');
+    }
+
+    const userID = req.session.user.userID; 
+
+    try {
+        const [userResult] = await db.promise().query(
+            "SELECT username, email, created_at, urole FROM users WHERE userID = ?", 
+            [userID]
+        );
+        const userData = userResult[0];
+
+        const [feederResult] = await db.promise().query(
+            "SELECT COUNT(*) as count FROM petfeeders WHERE userID = ?", 
+            [userID]
+        );
+        const totalFeeders = feederResult[0].count;
+
+        const [foodResult] = await db.promise().query(
+            `SELECT SUM(amount) as total 
+             FROM feedlogs 
+             WHERE feederID IN (SELECT feederID FROM petfeeders WHERE userID = ?) 
+             AND MONTH(feedAt) = MONTH(CURRENT_DATE())`,
+            [userID]
+        );
+        const totalFood = foodResult[0].total || 0;
+
+        res.render('profile', {
+            user: userData,
+            totalFeeders: totalFeeders,
+            totalFood: totalFood
+        });
+
+    } catch (error) {
+        console.error("Error loading profile stats:", error);
+        res.render('profile', { 
+            user: req.session.user,
+            totalFeeders: 0,
+            totalFood: 0
+        });
+    }
 });
 
 // Logout
@@ -157,10 +215,10 @@ router.post('/user/update', async (req, res) => {
     //password change check
     if (newPassword || confirmPassword) {
         if (newPassword !== confirmPassword) {
-            return res.send("<script>alert('รหัสผ่านไม่ตรงกัน'); window.history.back();</script>");
+            return sendAlert(res, 'error', 'ข้อมูลไม่ถูกต้อง', 'รหัสผ่านยืนยันไม่ตรงกัน');
         }
         if (newPassword.length < 6) {
-             return res.send("<script>alert('รหัสผ่านต้องมีอย่างน้อย 6 ตัว'); window.history.back();</script>");
+            return sendAlert(res, 'warning', 'รหัสผ่านสั้นเกินไป', 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
         }
         // Hash รหัสผ่าน
         const hashedPassword = await bcrypt.hash(newPassword, 8);
@@ -177,7 +235,7 @@ router.post('/user/update', async (req, res) => {
     db.query(sql, params, (err, result) => {
         if (err) {
             console.error(err);
-            return res.send("<script>alert('เกิดข้อผิดพลาด: Email อาจจะซ้ำหรือระบบมีปัญหา'); window.history.back();</script>");
+            return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'Email นี้อาจมีผู้ใช้งานแล้ว หรือระบบมีปัญหา');
         }
 
         //update session
@@ -206,7 +264,7 @@ router.post('/user/delete', async (req, res) => {
     try {
         //prevent admin self remove
         if (targetUserID == adminID) {
-            return res.send("<script>alert('❌ ไม่สามารถลบบัญชีตัวเองผ่านช่องทางนี้ได้'); window.history.back();</script>");
+           return sendAlert(res, 'error', 'ไม่อนุญาต', 'ไม่สามารถลบบัญชีของตัวเองได้');
         }
 
         //password checking
@@ -214,7 +272,7 @@ router.post('/user/delete', async (req, res) => {
         const match = await bcrypt.compare(password, admins[0].password);
         
         if (!match) {
-            return res.send("<script>alert('❌ รหัสผ่าน Admin ไม่ถูกต้อง'); window.history.back();</script>");
+            return sendAlert(res, 'error', 'รหัสผ่านผิด', 'รหัสผ่าน Admin ไม่ถูกต้อง');
         }
 
         //feeder with no owner
@@ -234,11 +292,11 @@ router.post('/user/delete', async (req, res) => {
         //remove user
         await db.promise().query("DELETE FROM users WHERE userID = ?", [targetUserID]);
 
-        res.send(`<script>alert('🗑️ ลบผู้ใช้งานและเคลียร์เครื่องเรียบร้อยแล้ว'); window.location.href='/admindashboard';</script>`);
+        return sendAlert(res, 'success', 'ลบผู้ใช้สำเร็จ', 'ลบผู้ใช้งานและเคลียร์เครื่องเรียบร้อยแล้ว', '/admindashboard');
 
     } catch (err) {
         console.error("Delete User Error:", err);
-        res.send(`<script>alert('เกิดข้อผิดพลาดในการลบผู้ใช้: ${err.message}'); window.history.back();</script>`);
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถลบผู้ใช้ได้');
     }
 });
 
@@ -293,11 +351,11 @@ router.post('/feeder/update', async (req, res) => {
             );
         }
         
-        res.redirect('/admindashboard');
+        return sendAlert(res, 'success', 'อัปเดตสำเร็จ', 'บันทึกการแก้ไขสำเร็จ', '/admindashboard');
 
     } catch (err) {
         console.error(err);
-        res.send("<script>alert('Error updating feeder: " + err.message + "'); window.history.back();</script>");
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถอัปเดตข้อมูลเครื่องได้');
     }
 });
 
@@ -315,7 +373,7 @@ router.post('/feeder/delete', async (req, res) => {
         const match = await bcrypt.compare(password, admins[0].password);
         
         if (!match) {
-            return res.send("<script>alert('❌ รหัสผ่าน Admin ไม่ถูกต้อง'); window.history.back();</script>");
+            return sendAlert(res, 'error', 'รหัสผ่านผิด', 'รหัสผ่าน Admin ไม่ถูกต้อง');
         }
 
         await db.promise().query("DELETE FROM feedconfig WHERE feederID = ?", [feederID]); 
@@ -323,11 +381,11 @@ router.post('/feeder/delete', async (req, res) => {
         await db.promise().query("DELETE FROM dashboards WHERE feederID = ?", [feederID]); 
         await db.promise().query("DELETE FROM petfeeders WHERE feederID = ?", [feederID]);
 
-        res.send(`<script>alert('🗑️ ลบเครื่องให้อาหารออกจากระบบถาวรเรียบร้อยแล้ว'); window.location.href='/admindashboard';</script>`);
+        return sendAlert(res, 'success', 'ลบเครื่องสำเร็จ', 'ลบเครื่องให้อาหารออกจากระบบถาวรแล้ว', '/admindashboard');
 
     } catch (err) {
         console.error("Delete Feeder Error:", err);
-        res.send(`<script>alert('เกิดข้อผิดพลาดในการลบ: ${err.message}'); window.history.back();</script>`);
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถลบเครื่องให้อาหารได้');
     }
 });
 

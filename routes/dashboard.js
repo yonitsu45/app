@@ -5,6 +5,31 @@ const bcrypt = require('bcryptjs');
 const { isLoggedIn } = require('../middleware/isLogged');
 const { getDashboards } = require('../middleware/getDashboards');
 
+function sendAlert(res, icon, title, text, redirectUrl = 'back') {
+    res.send(`
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+        <style>
+            body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; }
+            .swal2-popup { border-radius: 15px !important; }
+        </style>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                Swal.fire({
+                    icon: '${icon}',
+                    title: '${title}',
+                    text: '${text}',
+                    confirmButtonColor: '#0d6efd',
+                    confirmButtonText: 'ตกลง',
+                    allowOutsideClick: false
+                }).then(() => {
+                    ${redirectUrl === 'back' ? 'window.history.back();' : `window.location.href='${redirectUrl}';`}
+                });
+            });
+        </script>
+    `);
+}
+
 router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
   const { id } = req.params;
   const userId = req.session.user.userID;
@@ -65,20 +90,14 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
         
         //not found
         if (devices.length === 0) {
-            return res.render('index', {
-                message: 'ไม่พบ token',
-                error: true
-            });
+            return sendAlert(res, 'error', 'ไม่พบเครื่อง', 'ไม่พบ Token นี้ในระบบ กรุณาตรวจสอบอีกครั้ง', '/index');
         }
 
         const device = devices[0];
 
         //check ownership
         if (device.userID !== null) {
-            return res.render('index', {
-                message: 'ไม่พบเครื่อง',
-                error: true
-            });
+            return sendAlert(res, 'warning', 'เครื่องมีเจ้าของแล้ว', 'เครื่องนี้ถูกลงทะเบียนโดยผู้ใช้อื่นแล้ว', '/index');
         }
 
         //update 
@@ -89,17 +108,11 @@ router.post('/dashboard/add', isLoggedIn, async (req, res) => {
         await db.promise().query('INSERT INTO dashboards (userID, feederID, dashboardName) VALUES (?, ?, ?)', 
             [userId, device.feederID, name]);
 
-        req.flash('success', 'เพิ่มอุปกรณ์เรียบร้อยแล้ว!');
-        res.render('index', {
-            message: 'เพิ่มอุปกรณ์เรียบร้อยแล้ว!',
-            error: false,
-            autoRedirect: true
-        });
+        return sendAlert(res, 'success', 'เพิ่มเครื่องสำเร็จ', 'เชื่อมต่อเครื่องให้อาหารของคุณเรียบร้อยแล้ว', '/index');
 
     } catch (err) {
         console.error(err);
-        req.flash('error', 'เกิดข้อผิดพลาดในการบันทึก');
-        res.redirect('/index');
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถเพิ่มอุปกรณ์ได้ในขณะนี้', '/index');
     }
 });
 
@@ -218,7 +231,7 @@ router.post('/dashboard/:id/edit', isLoggedIn, async (req, res) => {
             await db.promise().query('UPDATE petfeeders SET feederName = ? WHERE feederID = ?', [newName, dash[0].feederID]);
         }
 
-        res.send(`<script>alert('✅ เปลี่ยนชื่อเครื่องสำเร็จ!'); window.location.href='/dashboard/${dashboardID}';</script>`);
+        return sendAlert(res, 'success', 'สำเร็จ!', 'เปลี่ยนชื่อเครื่องเรียบร้อยแล้ว', '/dashboard/' + dashboardID);
 
     } catch (err) {
         console.error(err);
@@ -237,7 +250,7 @@ router.post('/dashboard/:id/delete-feeder', isLoggedIn, async (req, res) => {
         const match = await bcrypt.compare(password, users[0].password);
         
         if (!match) {
-            return res.send("<script>alert('❌ รหัสผ่านไม่ถูกต้อง'); window.history.back();</script>");
+            return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'รหัสผ่านยืนยันไม่ถูกต้อง');
         }
 
         const [dash] = await db.promise().query('SELECT feederID FROM dashboards WHERE dashboardID = ? AND userID = ?', [dashboardID, userId]);
@@ -253,11 +266,30 @@ router.post('/dashboard/:id/delete-feeder', isLoggedIn, async (req, res) => {
 
         await db.promise().query('DELETE FROM dashboards WHERE dashboardID = ?', [dashboardID]);
 
-        res.send(`<script>alert('🗑️ ลบเครื่องให้อาหารออกจากบัญชีแล้ว'); window.location.href='/index';</script>`);
+        return sendAlert(res, 'success', 'ลบสำเร็จ', 'ลบเครื่องออกจากบัญชีของคุณแล้ว', '/index');
 
     } catch (err) {
         console.error(err);
         res.send("<script>alert('เกิดข้อผิดพลาดในการลบ'); window.history.back();</script>");
+    }
+});
+
+router.delete('/api/feeder/:id/logs', isLoggedIn, async (req, res) => {
+    try {
+        const feederID = req.params.id;
+        
+        // ลบข้อมูลในตาราง feedlogs เฉพาะของเครื่องนั้นๆ
+        await db.promise().query(
+            'DELETE FROM feedlogs WHERE feederID = ?',
+            [feederID]
+        );
+        
+        // ตอบกลับไปหาหน้าบ้าน (Frontend) ว่าลบสำเร็จ
+        res.json({ success: true, message: 'ล้างประวัติเรียบร้อยแล้ว' });
+
+    } catch (err) {
+        console.error("Clear Logs Error:", err);
+        res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
     }
 });
 

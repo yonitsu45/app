@@ -8,9 +8,10 @@ const getDashboards = (req, res, next) => {
 
     const userId = req.session.user.userID;
     const sql = `
-        SELECT dashboardID AS id, dashboardName AS name 
-        FROM dashboards 
-        WHERE userID = ? 
+        SELECT d.dashboardID as id, d.dashboardName as name, p.foodlvl , p.waterlvl
+        FROM dashboards d 
+        LEFT JOIN petfeeders p ON d.feederID = p.feederID 
+        WHERE d.userID = ?
         ORDER BY dashboardID ASC
     `;
 

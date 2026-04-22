@@ -5,104 +5,198 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/fcb441cbed.js" crossorigin="anonymous"></script>
+    <!-- <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"> -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="icon" href="https://i.ibb.co/5hZBy3pm/mochi-64x64.png">
     <link rel="stylesheet" href="/css/style.css">
-    <link rel="icon" href="https://ibb.co/N2RZPqD5">
-    <title>ECP SMART PET FEEDER | Dashboard</title>
+    <title>ECP SMART PET | Dashboard</title>
 </head>
-<body class="bgcolor">
+<body>
     <%- include('partials/navbar') %>
+    <%- include('partials/feederNameEdit') %> 
 
-    <div class="container mt-4">
-        <div class="card">
-            <div class="card-body" style="border: 2px; border-color: black;">
-                <h1><%= dashboard.dashboardName %></h1>
-                <p>หน้านี้เป็น Dashboard ของคุณ (<%= user.username %>)</p>
-                <hr>
-                <div class="mb-3">
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-4">
-                            <div class="card h-100 shadow-sm"> <div class="card-body d-flex align-items-center justify-content-between">
-                                <div>
-                                    <h5 class="card-title mb-0">สถานะเครื่อง</h5>
-                                    <small class="text-muted" id="masterStatusLabel">
-                                        <%= feederStatus == 1 ? 'กำลังทำงาน' : 'หยุดทำงาน' %>
-                                    </small>
-                                </div>
-                                
-                                <div class="form-check form-switch mb-0">
-                                    <input class="form-check-input" type="checkbox" role="switch" id="masterSwitch"
-                                        style="width: 3em; height: 1.5em; cursor: pointer;"
-                                        <%= feederStatus == 1 ? 'checked' : '' %> 
-                                        onchange="toggleFeederStatus('<%= dashboard.feederID %>')">
-                                </div>
-                            </div>
-                        </div>
+    <div class="container py-4">
+        
+        <div class="row align-items-center mb-4">
+            <div class="col-md-8">
+                <h2 class="fw-bold text-dark mb-0">
+                    <i class="fa-solid fa-paw text-primary me-2 overflow-hidden"></i><%= dashboard.dashboardName %>
+                    <button class="btn btn-sm btn-outline-secondary ms-2 rounded-circle" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                </h2>
+                <p class="text-muted mt-1 mb-0">ยินดีต้อนรับ, <%= user.username %> | จัดการเครื่องให้อาหารของคุณ</p>
+            </div>
+            <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                <div class="card card-modern bg-white d-inline-flex flex-row align-items-center px-4 py-2">
+                    <div class="me-3 text-start">
+                        <small class="text-muted d-block lh-1">สถานะเครื่อง</small>
+                        <strong id="masterStatusLabel" class="<%= feederStatus == 1 ? 'text-success' : 'text-danger' %>">
+                            <%= feederStatus == 1 ? '🟢 ทำงาน' : '🔴 หยุดทำงาน' %>
+                        </strong>
                     </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 shadow-sm border-warning">
-                            <div class="card-body text-center">
-                                <h5 class="card-title text-warning">FOOD LEVEL</h5>
-                                <span class="fw-bold fs-5" id="foodText">0 %</span>
-                            </div>
-                        </div>
+                    <div class="form-check form-switch mb-0 ms-2">
+                        <input class="form-check-input" type="checkbox" role="switch" id="masterSwitch"
+                            style="width: 3em; height: 1.5em; cursor: pointer;"
+                            <%= feederStatus == 1 ? 'checked' : '' %> 
+                            onchange="toggleFeederStatus('<%= dashboard.feederID %>')">
                     </div>
-                    <div class="col-md-4">
-                        <div class="card h-100 shadow-sm border-primary">
-                            <div class="card-body text-center">
-                                <h5 class="card-title text-primary">WATER LEVEL</h5>
-                                <span class="fw-bold fs-5" id="waterText">0 %</span>
-                            </div>
-                        </div>
-                    </div>
-
                 </div>
-                <% if (configs.length > 0) { %>
-                    <table class="table">
-                        <thead>
-                            <tr>
-                                <th>เวลา</th>
-                                <th>ปริมาณอาหาร (กรัม)</th>
-                                <th>ลบ</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% configs.forEach(cfg => { %>
-                                <tr>
-                                    <td><%= cfg.feedTime %></td>    
-                                    <td><%= cfg.feedDura %></td>
-                                    <td>
-                                        <form action="/config/delete/<%= cfg.conID %>" method="POST" onsubmit="if(confirm('ยืนยันที่จะลบการตั้งค่านี้?')) { notifyServerUpdate(); return true; } else { return false; }">
-                                            <input type="hidden" name="dashboardID" value="<%= dashboard.dashboardID %>">
-                                            <input type="hidden" name="feederID" value="<%= dashboard.feederID %>">
-                                            <button type="submit" class="btn btn-danger btn-sm">
-                                                <img src="https://www.svgrepo.com/show/533010/trash-alt.svg" alt="conDelete" width="16" height="16" style="filter: invert(1);">
-                                            </button>
-                                        </form>
-                                    </td>
-                                </tr>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-lg-7">
+                
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6">
+                        <div class="card card-modern h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <p class="text-muted fw-bold mb-1">ปริมาณอาหารในถัง</p>
+                                        <h3 class="fw-bold mb-0 text-dark"><span id="foodText">0</span> %</h3>
+                                    </div>
+                                    <div class="icon-box bg-food"><i class="fa-solid fa-bone"></i></div>
+                                </div>
+                                <div class="bg-light rounded p-2 text-center border">
+                                    <small class="text-muted">ในถาดพร้อมทาน: <strong id="bowlFoodText" class="text-dark fs-5">0</strong> กรัม</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="card card-modern h-100">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <div>
+                                        <p class="text-muted fw-bold mb-1">ปริมาณน้ำสำรอง</p>
+                                        <h3 class="fw-bold mb-0 text-dark"><span id="waterText">0</span> %</h3>
+                                    </div>
+                                    <div class="icon-box bg-water"><i class="fa-solid fa-droplet"></i></div>
+                                </div>
+                                <div class="bg-light rounded p-2 text-center border">
+                                    <small class="text-muted">ในถาดพร้อมดื่ม: <strong id="bowlWaterText" class="text-dark fs-5">0</strong> มล.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-modern mb-4">
+                    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0 fw-bold text-dark"><i class="fa-regular fa-clock me-2"></i>ตารางเวลาให้อาหาร</h5>
+                        <span class="badge bg-primary rounded-pill"><%= configs.length %>/3 Slots</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <% if (configs.length > 0) { %>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0 text-center">
+                                    <thead class="table-light text-muted">
+                                        <tr>
+                                            <th><small>เวลา</small></th>
+                                            <th><small>ปริมาณ</small></th>
+                                            <th><small>จัดการ</small></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% configs.forEach(cfg => { %>
+                                            <tr>
+                                                <td class="fw-bold fs-5 text-dark"><%= cfg.feedTime %></td>    
+                                                <td><span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2"><%= cfg.feedAmount %> กรัม</span></td>
+                                                <td>
+                                                    <form action="/config/delete/<%= cfg.conID %>" method="POST" class="d-inline" onsubmit="return confirm('ยืนยันที่จะลบเวลา <%= cfg.feedTime %> นี้?');">
+                                                        <input type="hidden" name="dashboardID" value="<%= dashboard.dashboardID %>">
+                                                        <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle" title="ลบเวลา"><i class="fa-solid fa-trash"></i></button>
+                                                    </form>
+                                                </td>
+                                            </tr>
+                                        <% }) %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center text-muted py-5">
+                                <i class="fa-regular fa-calendar-xmark fs-1 mb-2 opacity-50"></i>
+                                <p class="mb-0">ยังไม่มีการตั้งเวลาให้อาหาร</p>
+                            </div>
+                        <% } %>
+                    </div>
+                    <div class="card-footer bg-white border-top-0 p-3 text-center">
+                        <% if (configs.length < 3) { %>
+                            <button class="btn btn-primary w-100 fw-bold rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#addConfig">
+                                <i class="fa-solid fa-plus me-1"></i> เพิ่มเวลาให้อาหาร
+                            </button>
+                        <% } else { %>
+                            <div class="alert alert-warning mb-0 py-2"><i class="fa-solid fa-circle-exclamation me-2"></i>ตั้งเวลาเต็มจำนวน 3 ครั้งแล้ว</div>
+                        <% } %>
+                    </div>
+                </div>
+
+                <div class="card card-modern mb-4">
+                    <div class="card-header bg-dark text-white py-2 d-flex justify-content-between align-items-center border-0" style="border-radius: 15px 15px 0 0;">
+                        <span class="fw-bold"><i class="fa-solid fa-video me-2"></i>Live Camera</span>
+                        <span id="camStatus" class="badge bg-secondary">Connecting...</span>
+                    </div>
+                    <div class="card-body p-0 bg-black text-center" style="border-radius: 0 0 15px 15px; min-height: 200px; display: flex; align-items: center; justify-content: center;">
+                        <img id="liveStream" src="" alt="Waiting for stream..." class="img-fluid w-100" style="border-radius: 0 0 15px 15px; object-fit: cover;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-5">
+                
+                <div class="card card-modern bg-primary text-white mb-4 overflow-hidden position-relative">
+                    <i class="fa-solid fa-bowl-food position-absolute opacity-10" style="font-size: 8rem; right: -20px; top: -10px;"></i>
+                    <div class="card-body position-relative z-1 p-4">
+                        <h5 class="fw-bold mb-3"><i class="fa-solid fa-bolt me-2"></i>สั่งให้อาหารทันที</h5>
+                        <div class="input-group input-group-lg shadow-sm">
+                            <input type="number" id="manualFeedAmount" class="form-control text-center fw-bold" value="10" min="10" max="1000" step="10" placeholder="กรัม">
+                            <span class="input-group-text bg-white text-dark">g.</span>
+                            <button class="btn btn-warning fw-bold px-4" type="button" onclick="sendManualFeed()">จ่ายอาหาร</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card card-modern mb-4">
+                    <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0 fw-bold text-dark"><i class="fa-solid fa-clock-rotate-left me-2"></i>ประวัติล่าสุด</h6>
+                        <div>
+                            <button class="btn btn-sm btn-outline-danger border me-1" onclick="clearLogs()" title="ล้างประวัติทั้งหมด">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-light border" onclick="refreshLogs()" title="โหลดประวัติใหม่">
+                                <i class="fa-solid fa-rotate-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <ul class="list-group list-group-flush log-scroll" id="feedLogList">
+                        <% if (logs.length > 0) { %>
+                            <% logs.forEach(log => { %>
+                                <li class="list-group-item d-flex justify-content-between align-items-center py-3 border-bottom-0">
+                                    <div class="d-flex align-items-center">
+                                        <div class="icon-box bg-light me-3" style="width: 36px; height: 36px; font-size: 14px;">
+                                            <i class="<%= log.type === 'manual' ? 'fa-solid fa-hand text-warning' : 'fa-solid fa-alarm-clock text-primary' %>"></i>
+                                        </div>
+                                        <div>
+                                            <span class="d-block fw-bold text-dark"><%= log.amount %> กรัม</span>
+                                            <small class="text-muted">
+                                                <%= new Date(log.feedAt).toLocaleString('th-TH-u-ca-gregory', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' , second: '2-digit'}) %> น.
+                                            </small>
+                                        </div>
+                                    </div>
+                                    <span class="badge bg-light text-dark border"><%= log.type === 'manual' ? 'สั่งมือ' : 'อัตโนมัติ' %></span>
+                                </li>
                             <% }) %>
-                        </tbody>
-                    </table>
-                <% } else { %>
-                    <div class="alert alert-secondary text-center mt-3">
-                        ยังไม่มีการตั้งค่าการให้อาหาร
-                    </div>
-                <% } %>
-                <% if (configs.length < 3) { %>
-                    <a class="btn btn-primary mt-3 d-block" data-bs-toggle="modal" data-bs-target="#addConfig">+ เพิ่มเวลาให้อาหาร</a>
-                <% } else { %>
-                    <p class="text-muted">เวลาในการตั้งอาหารเต็มแล้ว (3 ครั้ง)</p>
-                <% } %>
-
-                <hr>
-
-                <div class="card mt-3">
-                    <div class="card-header bg-dark text-white">Live Camera</div>
-                    <div class="card-body text-center">
-                        <img id="liveStream" src="" alt="Waiting for stream..." style="max-width: 100%; border-radius: 8px; border: 2px solid #ddd;">
-                        <p class="text-muted mt-2" id="camStatus">Connecting...</p>
-                    </div>
+                        <% } else { %>
+                            <li class="list-group-item text-center text-muted py-5 border-bottom-0">ไม่มีประวัติการให้อาหาร</li>
+                        <% } %>
+                    </ul>
                 </div>
+
             </div>
         </div>
     </div>
@@ -158,6 +252,11 @@
                 type: 'watch',
                 feederID: currentFeederID
             }));
+
+            ws.send(JSON.stringify({
+                type: 'force_update_client',
+                targetID: currentFeederID
+            }));
         };
 
         ws.onmessage = (event) => {
@@ -172,18 +271,17 @@
                 };
                 
                 imgElement.src = url;
-                statusElement.innerText = "Live";
+                statusElement.innerText = "🔴 Live";
                 statusElement.style.color = "green";
             }
         };
 
         ws.onclose = () => {
-            statusElement.innerText = "Disconnected";
+            statusElement.innerText = "💥Disconnected";
             statusElement.style.color = "red";
         };
     </script>
     <script>
-
         async function fetchRealtimeData() {
             try {
                 const response = await fetch(`/api/feeder/status/${currentFeederID}`);
@@ -195,26 +293,22 @@
         }
 
         function updateUI(data) {
-            // 1. อัปเดตสถานะเครื่อง
             const switchBtn = document.getElementById('masterSwitch');
-            // 🔥 แก้ตรงนี้: เปลี่ยนจาก 'statusText' เป็น 'masterStatusLabel' ให้ตรงกับ HTML
             const statusText = document.getElementById('masterStatusLabel'); 
             
-            // เช็คว่า switchBtn มีอยู่จริงไหมก่อนใช้งาน (กัน Error)
             if (switchBtn) {
                 if (switchBtn.checked !== (data.isActive == 1)) {
                     switchBtn.checked = (data.isActive == 1);
                 }
             }
             
-            // เช็คว่า statusText มีอยู่จริงไหมก่อนใช้งาน
             if (statusText) {
                 if (data.isActive == 1) {
-                    statusText.innerText = "กำลังทำงาน"; // หรือ "Online"
-                    statusText.style.color = "green";     // ปรับสีแบบง่ายๆ
-                    statusText.className = "text-success fw-bold"; // หรือใช้ Class
+                    statusText.innerText = "กำลังทำงาน";
+                    statusText.style.color = "green";
+                    statusText.className = "text-success fw-bold"; 
                 } else {
-                    statusText.innerText = "หยุดทำงาน";   // หรือ "Offline"
+                    statusText.innerText = "หยุดทำงาน";
                     statusText.style.color = "gray";
                     statusText.className = "text-muted fw-bold";
                 }
@@ -222,17 +316,131 @@
 
             const foodText = document.getElementById('foodText');
             if (foodText) {
-                foodText.innerText = data.foodLevel + " %";
+                foodText.innerText = data.foodLevel;
             }
             
             const waterText = document.getElementById('waterText');
             if (waterText) {
-                waterText.innerText = data.waterLevel + " %";
+                waterText.innerText = data.waterLevel;
             }
+
+            const bowlFoodText = document.getElementById('bowlFoodText');
+            if (bowlFoodText) bowlFoodText.innerText = data.bowl_food; 
+            
+            const bowlWaterText = document.getElementById('bowlWaterText');
+            if (bowlWaterText) bowlWaterText.innerText = data.bowl_water;
         }
 
         setInterval(fetchRealtimeData, 3000);
         fetchRealtimeData();
+
+
+        //feed อาหารแบบ manual
+        function sendManualFeed() {
+            const amountInput = document.getElementById('manualFeedAmount').value;
+            const amount = parseInt(amountInput);
+
+            if (isNaN(amount) || amount <= 0) {
+                // ✅ เปลี่ยนเป็น SweetAlert
+                themeSwal.fire({
+                    icon: 'error',
+                    title: 'ข้อมูลไม่ถูกต้อง',
+                    text: 'กรุณาใส่ปริมาณอาหารให้ถูกต้อง',
+                    confirmButtonText: 'ตกลง'
+                });
+                return;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'manual_feed', feederID: currentFeederID, amount: amount }));
+                
+                // ✅ เปลี่ยนจาก alert เป็น toast (แจ้งเตือนแบบไม่ต้องกดตกลง)
+                themeSwal.fire({
+                    icon: 'success',
+                    title: 'สั่งการสำเร็จ',
+                    text: `กำลังสั่งเครื่องจ่ายอาหาร ${amount} กรัม...`,
+                    showConfirmButton: false,
+                    timer: 1500 // หายไปเองใน 1.5 วินาที
+                });
+            } else {
+                themeSwal.fire({ icon: 'warning', title: 'การเชื่อมต่อขัดข้อง', text: 'กรุณารอสักครู่...' });
+            }
+        }
+
+        async function refreshLogs() {
+            try {
+                const response = await fetch(`/api/feeder/${currentFeederID}/logs`);
+                const logs = await response.json();
+                
+                const logList = document.getElementById('feedLogList');
+                logList.innerHTML = '';
+
+                if (logs.length > 0) {
+                    logs.forEach(log => {
+                        const dateObj = new Date(log.feedAt);
+                        const timeStr = dateObj.toLocaleString('th-TH-u-ca-gregory', { 
+                            day: 'numeric', 
+                            month: 'short', 
+                            year: 'numeric', 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                        }) + ' น.';
+                        
+                        const isManual = log.type === 'manual';
+                        const iconClass = isManual ? 'fa-solid fa-hand text-warning' : 'fa-solid fa-clock text-primary';
+                        const badgeText = isManual ? 'สั่งมือ' : 'อัตโนมัติ';
+                        
+                        const li = document.createElement('li');
+                        li.className = 'list-group-item d-flex justify-content-between align-items-center py-3 border-bottom-0';
+                        li.innerHTML = `
+                            <div class="d-flex align-items-center">
+                                <div class="icon-box bg-light me-3" style="width: 36px; height: 36px; font-size: 14px;">
+                                    <i class="${iconClass}"></i>
+                                </div>
+                                <div>
+                                    <span class="d-block fw-bold text-dark">${log.amount} กรัม</span>
+                                    <small class="text-muted">${timeStr}</small>
+                                </div>
+                            </div>
+                            <span class="badge bg-light text-dark border">${badgeText}</span>
+                        `;
+                        logList.appendChild(li);
+                    });
+                } else {
+                    logList.innerHTML = '<li class="list-group-item text-center text-muted py-5 border-bottom-0">ไม่มีประวัติการให้อาหาร</li>';
+                }
+            } catch (error) {
+                console.error("Error refreshing logs:", error);
+                alert("ไม่สามารถรีเฟรชประวัติได้");
+            }
+        }
+
+        async function clearLogs() {
+            // ✅ ใช้ themeSwal ถามก่อนลบ
+            const result = await themeSwal.fire({
+                icon: 'warning',
+                title: 'ยืนยันการล้างประวัติ?',
+                text: 'ประวัติทั้งหมดจะถูกลบถาวร ไม่สามารถกู้คืนได้',
+                showCancelButton: true,
+                confirmButtonText: 'ใช่, ลบทิ้งเลย',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonColor: '#dc3545', // สีแดง
+            });
+
+            if (result.isConfirmed) {
+                try {
+                    const response = await fetch(`/api/feeder/${currentFeederID}/logs`, { method: 'DELETE' });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        themeSwal.fire({ icon: 'success', title: 'ล้างประวัติสำเร็จ', timer: 1500, showConfirmButton: false });
+                        refreshLogs();
+                    }
+                } catch (error) {
+                    themeSwal.fire({ icon: 'error', title: 'ล้มเหลว', text: 'ไม่สามารถติดต่อ Server ได้' });
+                }
+            }
+        }
     </script>
     <%- include('partials/configModal') %>
 </body>
