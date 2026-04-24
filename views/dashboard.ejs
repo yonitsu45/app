@@ -108,7 +108,7 @@
                                                 <td class="fw-bold fs-5 text-dark"><%= cfg.feedTime %></td>    
                                                 <td><span class="badge bg-success bg-opacity-10 text-success border border-success px-3 py-2"><%= cfg.feedAmount %> กรัม</span></td>
                                                 <td>
-                                                    <form action="/config/delete/<%= cfg.conID %>" method="POST" class="d-inline" onsubmit="return confirm('ยืนยันที่จะลบเวลา <%= cfg.feedTime %> นี้?');">
+                                                    <form action="/config/delete/<%= cfg.conID %>" method="POST" class="d-inline" onsubmit="confirmDeleteSchedule(event, this)">
                                                         <input type="hidden" name="dashboardID" value="<%= dashboard.dashboardID %>">
                                                         <button type="submit" class="btn btn-outline-danger btn-sm rounded-circle" title="ลบเวลา"><i class="fa-solid fa-trash"></i></button>
                                                     </form>
@@ -232,8 +232,7 @@
                 alert('เชื่อมต่อ Server ไม่ได้');
             });
         }
-    </script>
-    <script>
+
         // URL ของ WebSocket
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
@@ -280,8 +279,7 @@
             statusElement.innerText = "💥Disconnected";
             statusElement.style.color = "red";
         };
-    </script>
-    <script>
+
         async function fetchRealtimeData() {
             try {
                 const response = await fetch(`/api/feeder/status/${currentFeederID}`);
@@ -440,6 +438,25 @@
                     themeSwal.fire({ icon: 'error', title: 'ล้มเหลว', text: 'ไม่สามารถติดต่อ Server ได้' });
                 }
             }
+        }
+
+        function confirmDeleteSchedule(event, formElement) {
+            event.preventDefault(); 
+
+            themeSwal.fire({
+                icon: 'warning',
+                title: 'ยืนยันการลบตารางเวลา',
+                text: '⚠️ คำเตือน: ยืนยันที่จะลบตารางเวลานี้',
+                showCancelButton: true,
+                confirmButtonColor: '#dc3545',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'ใช่, ลบทิ้งเลย!',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    formElement.submit();
+                }
+            });
         }
     </script>
     <%- include('partials/configModal') %>

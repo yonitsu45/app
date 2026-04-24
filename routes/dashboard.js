@@ -131,7 +131,7 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
         );
 
         if (dupRows.length > 0) {
-            return res.send(`<script>alert('❌ เวลานี้มีอยู่แล้ว!'); window.location.href = '/dashboard/${dashboardID}';</script>`);
+            return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถเพิ่มเวลาได้', '/dashboard/:id');
         }
         // schedule slot
         const [existingSlots] = await db.promise().query(

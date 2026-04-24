@@ -76,7 +76,7 @@
                         <li><hr class="dropdown-divider"></li>
                         
                         <li>
-                            <form action="/logout" method="GET" class="m-0" onsubmit="return confirm('ยืนยันที่จะออกจากระบบ?');">
+                            <form action="/logout" method="GET" class="m-0" onsubmit="confirmLogout(event, this)">
                                 <button type="submit" class="dropdown-item py-2 text-danger fw-bold">
                                     <i class="fa-solid fa-arrow-right-from-bracket me-2"></i>Logout
                                 </button>
@@ -206,3 +206,24 @@
 </div>
 
 <%- include('namingModal') %>
+
+<script>
+function confirmLogout(event, formElement) {
+    event.preventDefault(); 
+
+    themeSwal.fire({
+        icon: 'warning',
+        title: 'ยืนยันการ Logout',
+        text: '⚠️ คุณยืนยันที่จะออกจากระบบหรือไม่?',
+        showCancelButton: true,
+        confirmButtonColor: '#ff0000',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            formElement.submit();
+        }
+    });
+}
+</script>
