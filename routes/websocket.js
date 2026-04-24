@@ -106,9 +106,12 @@ function setupWebsocket(server) {
                         feeders.set(myFeederID, ws);
                         
                         // 🔥 อัปเดต DB isActive = 1 (เชื่อมต่อแล้ว)
-                        await db.promise().query('UPDATE petfeeders SET isActive = 1 WHERE feederID = ?', [myFeederID]);
-                        console.log(`✅ Feeder ID ${myFeederID} Online`);
-                        
+                        await db.promise().query(
+                            'UPDATE petfeeders SET wsConnected = 1 WHERE feederID = ?', 
+                            [myFeederID]
+                        );
+                        console.log(`✅ Feeder ID ${myFeederID} Online (WebSocket Connected)`);
+
                         // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ ONLINE ให้ Viewers
                         if (viewers.has(myFeederID)) {
                             viewers.get(myFeederID).forEach(viewer => {
@@ -122,7 +125,6 @@ function setupWebsocket(server) {
                                 }
                             });
                         }
-                        
                         notifyFeeder(myFeederID);
                     }
                 }
@@ -265,8 +267,11 @@ function setupWebsocket(server) {
                 feeders.delete(myFeederID);
                 
                 // 🔥 อัปเดต DB isActive = 0 (ตัดการเชื่อมต่อ)
-                await db.promise().query('UPDATE petfeeders SET isActive = 0 WHERE feederID = ?', [myFeederID]);
-                console.log(`❌ Feeder ${myFeederID} Disconnected`);
+                await db.promise().query(
+                    'UPDATE petfeeders SET wsConnected = 0 WHERE feederID = ?', 
+                    [myFeederID]
+                );
+                console.log(`❌ Feeder ${myFeederID} Offline (WebSocket Disconnected)`);
                 
                 // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ OFFLINE ให้ Viewers
                 if (viewers.has(myFeederID)) {

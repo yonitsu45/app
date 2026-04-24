@@ -51,10 +51,13 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
         const [feederResults] = await db.promise().query(
             'SELECT isActive FROM petfeeders WHERE feederID = ?', 
             [dashboard.feederID]
-        );
+        );  
 
-        const feederStatus = feederResults[0] ? feederResults[0].isActive : 0;
-        
+        const feederStatus = feederResults[0] ? {
+            wsConnected: feederResults[0].wsConnected,  // เชื่อมต่อจริง?
+            isActive: feederResults[0].isActive         // แจ้งเตือนเปิด?
+        } : { wsConnected: 0, isActive: 1 };
+
         //pull config
         const [configResults] = await db.promise().query(
             'SELECT * FROM feedconfig WHERE feederID = ? ORDER BY feedTime ASC', 
@@ -270,6 +273,55 @@ router.delete('/api/feeder/:id/logs', isLoggedIn, async (req, res) => {
     } catch (err) {
         console.error("Clear Logs Error:", err);
         res.status(500).json({ success: false, message: "เกิดข้อผิดพลาดที่เซิร์ฟเวอร์" });
+    }
+});
+
+router.post('/feeder/notification', isLoggedIn, async (req, res) => {
+    try {
+        const { feederID, isActive } = req.body;
+        
+        // 🔥 เพิ่ม Validation
+        if (!feederID || isActive === undefined) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Missing required parameters' 
+            });
+        }
+
+        // 🔥 เช็คว่า Feeder นี้เป็นของ User คนนี้ไหม
+        const [dash] = await db.promise().query(
+            'SELECT feederID FROM dashboards WHERE dashboardID IN (SELECT dashboardID FROM dashboards WHERE userID = ?) AND feederID = ?',
+            [req.session.user.userID, feederID]
+        );
+
+        if (dash.length === 0) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Unauthorized: This feeder does not belong to you' 
+            });
+        }
+
+        console.log(`🔔 เปลี่ยนสถานะแจ้งเตือน Feeder ${feederID} เป็น: ${isActive}`);
+
+        // อัปเดต isActive
+        await db.promise().query(
+            'UPDATE petfeeders SET isActive = ? WHERE feederID = ?',
+            [isActive, feederID]
+        );
+
+        res.json({ 
+            success: true, 
+            message: isActive === 1 ? '✅ เปิดการแจ้งเตือน' : '❌ ปิดการแจ้งเตือน',
+            feederID: feederID,
+            isActive: isActive
+        });
+
+    } catch (err) {
+        console.error('Error updating notification:', err);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Server error: ' + err.message 
+        });
     }
 });
 

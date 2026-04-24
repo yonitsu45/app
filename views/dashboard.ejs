@@ -31,15 +31,33 @@
                 <p class="text-muted mt-1 mb-0">ยินดีต้อนรับ, <%= user.username %> | จัดการเครื่องให้อาหารของคุณ</p>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                <div class="card card-modern bg-white d-inline-flex flex-row align-items-center px-4 py-2">
-                    <div class="me-3 text-start">
-                        <small class="text-muted d-block lh-1">สถานะ WebSocket</small>
-                        <!-- 🔥 เปลี่ยนจากปุ่มสวิตช์ เป็นแสดงสถานะเท่านั้น -->
+                <div class="card card-modern bg-white d-inline-flex flex-column align-items-start px-4 py-3" style="min-width: 250px;">
+                    
+                    <!-- 🔥 1. แสดงสถานะ WebSocket Connection -->
+                    <div class="mb-3 w-100">
+                        <small class="text-muted d-block lh-1">📡 สถานะการเชื่อมต่อ</small>
                         <strong id="masterStatusLabel" class="text-danger">
                             🔴 ตัดการเชื่อมต่อ
                         </strong>
                     </div>
-                    <!-- 🔥 ลบปุ่มสวิตช์ออกไป -->
+
+                    <!-- 🔥 2. Divider -->
+                    <hr class="w-100 my-2">
+
+                    <!-- 🔥 3. ควบคุมการแจ้งเตือน -->
+                    <div class="w-100">
+                        <small class="text-muted d-block lh-1">🔔 การแจ้งเตือน</small>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input" type="checkbox" role="switch" id="notificationSwitch"
+                                style="width: 3em; height: 1.5em; cursor: pointer;"
+                                <%= feederStatus.isActive == 1 ? 'checked' : '' %> 
+                                onchange="toggleNotification('<%= dashboard.feederID %>')">
+                            <label class="form-check-label ms-2" for="notificationSwitch">
+                                <span id="notificationLabel"><%= feederStatus.isActive == 1 ? '✅ เปิด' : '❌ ปิด' %></span>
+                            </label>
+                        </div>
+                    </div>
+
                 </div>
             </div>
         </div>
@@ -198,6 +216,101 @@
     </div>
 
 <script>
+    // ========================================
+    // Initialize - Sync with Local Storage
+    // ========================================
+    document.addEventListener('DOMContentLoaded', function() {
+        const currentFeederID = '<%= dashboard.feederID %>';
+        const notificationSwitch = document.getElementById('notificationSwitch');
+        const notificationLabel = document.getElementById('notificationLabel');
+        
+        // 🔥 เช็ค Local Storage ถ้ามีการตั้งค่าที่ยังไม่ได้ Sync
+        const localNotificationState = localStorage.getItem(`feeder_${currentFeederID}_notification`);
+        
+        if (localNotificationState !== null) {
+            console.log(`📱 Found Local Storage: ${localNotificationState}`);
+            const isActive = parseInt(localNotificationState);
+            
+            if (isActive !== (notificationSwitch.checked ? 1 : 0)) {
+                console.log(`🔄 Syncing from Local Storage...`);
+                notificationSwitch.checked = isActive === 1;
+                notificationLabel.innerText = isActive === 1 ? '✅ เปิด' : '❌ ปิด';
+                
+                // 🔥 พยายาม Sync ไปหา Server อีกครั้ง
+                syncNotificationToServer(currentFeederID, isActive);
+            }
+        }
+    });
+
+    // ========================================
+    // Helper Function - Retry Sync to Server
+    // ========================================
+    function syncNotificationToServer(feederID, isActive) {
+        console.log(`🔄 Retrying to sync: feeder_${feederID} = ${isActive}`);
+        
+        fetch('/feeder/notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feederID: feederID, isActive: isActive })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log(`✅ Successfully synced to Server`);
+                localStorage.removeItem(`feeder_${feederID}_notification`);
+            }
+        })
+        .catch(err => {
+            console.error('❌ Sync failed, will retry next time');
+        });
+    }
+
+
+    function toggleNotification(feederID) {
+        const switchElem = document.getElementById('notificationSwitch');
+        const labelElem = document.getElementById('notificationLabel');
+        const isActive = switchElem.checked ? 1 : 0;
+
+        // อัปเดตข้อความทันที
+        labelElem.innerText = isActive ? '✅ เปิด' : '❌ ปิด';
+
+        localStorage.setItem(`feeder_${feederID}_notification`, isActive);
+        console.log(`💾 บันทึกสถานะไว้ใน Browser: ${isActive}`);
+
+        // ส่งไปหา Server
+        fetch('/feeder/notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feederID: feederID, isActive: isActive })
+        })
+        .then(response => {
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                console.log(`✅ Server บันทึก: ${data.message}`);
+            } else {
+                themeSwal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: data.message
+            });
+                switchElem.checked = !switchElem.checked;
+                labelElem.innerText = isActive ? '❌ ปิด' : '✅ เปิด';
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            themeSwal.fire({
+                icon: 'warning',
+                title: 'เตือน',
+                text: 'ไม่สามารถเชื่อมต่อ Server ได้ แต่ตั้งค่าอาจบันทึกไว้ท้องถิ่น',
+                confirmButtonText: 'ตกลง'
+            });
+            switchElem.checked = !switchElem.checked;
+        });
+    }
     // ========================================
     // WebSocket Setup
     // ========================================
