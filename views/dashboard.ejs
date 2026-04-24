@@ -33,17 +33,13 @@
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
                 <div class="card card-modern bg-white d-inline-flex flex-row align-items-center px-4 py-2">
                     <div class="me-3 text-start">
-                        <small class="text-muted d-block lh-1">สถานะเครื่อง</small>
-                        <strong id="masterStatusLabel" class="<%= feederStatus == 1 ? 'text-success' : 'text-danger' %>">
-                            <%= feederStatus == 1 ? '🟢 ทำงาน' : '🔴 หยุดทำงาน' %>
+                        <small class="text-muted d-block lh-1">สถานะ WebSocket</small>
+                        <!-- 🔥 เปลี่ยนจากปุ่มสวิตช์ เป็นแสดงสถานะเท่านั้น -->
+                        <strong id="masterStatusLabel" class="text-danger">
+                            🔴 ตัดการเชื่อมต่อ
                         </strong>
                     </div>
-                    <div class="form-check form-switch mb-0 ms-2">
-                        <input class="form-check-input" type="checkbox" role="switch" id="masterSwitch"
-                            style="width: 3em; height: 1.5em; cursor: pointer;"
-                            <%= feederStatus == 1 ? 'checked' : '' %> 
-                            onchange="toggleFeederStatus('<%= dashboard.feederID %>')">
-                    </div>
+                    <!-- 🔥 ลบปุ่มสวิตช์ออกไป -->
                 </div>
             </div>
         </div>
@@ -201,264 +197,257 @@
         </div>
     </div>
 
-    <script>
-        function toggleFeederStatus(feederID) {
-            const switchElem = document.getElementById('masterSwitch');
-            const labelElem = document.getElementById('masterStatusLabel');
-            const isActive = switchElem.checked ? 1 : 0; // 1 = On, 0 = Off
+<script>
+    // ========================================
+    // WebSocket Setup
+    // ========================================
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
+    const ws = new WebSocket(wsUrl);
+    
+    const currentFeederID = '<%= dashboard.feederID %>';
+    const imgElement = document.getElementById('liveStream');
+    const statusElement = document.getElementById('camStatus');
+    const statusLabel = document.getElementById('masterStatusLabel');
 
-            // อัปเดตข้อความทันทีเพื่อความลื่นไหล
-            labelElem.innerText = isActive ? 'ทำงาน' : 'หยุดทำงาน';
-            labelElem.style.color = isActive ? 'green' : 'gray';
+    // ========================================
+    // WebSocket Connection Event
+    // ========================================
+    ws.onopen = () => {
+        console.log('✅ WebSocket connected to Server');
+        
+        // ส่ง watch command
+        ws.send(JSON.stringify({
+            type: 'watch',
+            feederID: currentFeederID
+        }));
 
-            // ส่งข้อมูลไปบันทึกที่ Server โดยไม่ต้องรีเฟรชหน้า (ใช้ fetch)
-            fetch('/feeder/status', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ feederID: feederID, isActive: isActive })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    console.log('Update success');
-                } else {
-                    alert('เกิดข้อผิดพลาด: ' + data.message);
-                    // ถ้าพัง ให้ดีดสวิตช์กลับ
-                    switchElem.checked = !switchElem.checked;
+        // ลบส่วนนี้ออก (ไม่ต้อง toggle status แล้ว)
+        // ws.send(JSON.stringify({
+        //     type: 'force_update_client',
+        //     targetID: currentFeederID
+        // }));
+    };
+
+    // ========================================
+    // WebSocket Message Handler (Real-time)
+    // ========================================
+    ws.onmessage = (event) => {
+        // ===== Handle Binary (Camera Stream) =====
+        if (event.data instanceof Blob) {
+            const url = URL.createObjectURL(event.data);
+            imgElement.onload = () => URL.revokeObjectURL(imgElement.src);
+            imgElement.src = url;
+            statusElement.innerText = "🟢 Live";
+            statusElement.style.color = "green";
+            return;
+        }
+
+        // ===== Handle JSON Messages =====
+        try {
+            const data = JSON.parse(event.data);
+
+            // 🔥 1️⃣ Device Status (MAIN - Check ESP32 Connection)
+            if (data.type === 'device_status') {
+                console.log(`📡 Device Status: ${data.status}`);
+                
+                if (data.status === 'online') {
+                    // ✅ ESP32 เชื่อมต่อมาแล้ว
+                    statusLabel.innerText = '🟢 เชื่อมต่อแล้ว (Online)';
+                    statusLabel.className = 'text-success fw-bold';
+                } else if (data.status === 'offline') {
+                    // ❌ ESP32 ตัดการเชื่อมต่อ
+                    statusLabel.innerText = '🔴 ตัดการเชื่อมต่อ (Offline)';
+                    statusLabel.className = 'text-danger fw-bold';
                 }
-            })
-            .catch(err => {
-                console.error(err);
-                alert('เชื่อมต่อ Server ไม่ได้');
+            }
+
+            // 🔥 2️⃣ Sensor Update (Real-time from ESP32)
+            if (data.type === 'update_sensor') {
+                const foodText = document.getElementById('foodText');
+                if (foodText) foodText.innerText = data.food;
+                
+                const waterText = document.getElementById('waterText');
+                if (waterText) waterText.innerText = data.water;
+                
+                const bowlFoodText = document.getElementById('bowlFoodText');
+                if (bowlFoodText) bowlFoodText.innerText = data.bowlFood;
+                
+                const bowlWaterText = document.getElementById('bowlWaterText');
+                if (bowlWaterText) bowlWaterText.innerText = data.bowlWater;
+            }
+
+            // 3️⃣ Schedule Update
+            if (data.type === 'schedule_update') {
+                console.log('📅 Schedule updated');
+            }
+
+        } catch (err) {
+            console.log('Non-JSON message received');
+        }
+    };
+
+    // ========================================
+    // WebSocket Closed Event
+    // ========================================
+    ws.onclose = () => {
+        console.log('❌ WebSocket disconnected from Server');
+        statusElement.innerText = "🔴 Disconnected";
+        statusElement.style.color = "red";
+        statusLabel.innerText = '🔴 ตัดการเชื่อมต่อ (No WS)';
+        statusLabel.className = 'text-danger fw-bold';
+    };
+
+    ws.onerror = (error) => {
+        console.error('❌ WebSocket Error:', error);
+    };
+
+    // ========================================
+    // Manual Feed Function
+    // ========================================
+    function sendManualFeed() {
+        const amountInput = document.getElementById('manualFeedAmount').value;
+        const amount = parseInt(amountInput);
+
+        if (isNaN(amount) || amount <= 0) {
+            themeSwal.fire({
+                icon: 'error',
+                title: 'ข้อมูลไม่ถูกต้อง',
+                text: 'กรุณาใส่ปริมาณอาหารให้ถูกต้อง',
+                confirmButtonText: 'ตกลง'
+            });
+            return;
+        }
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ 
+                type: 'manual_feed', 
+                feederID: currentFeederID, 
+                amount: amount 
+            }));
+            
+            themeSwal.fire({
+                icon: 'success',
+                title: 'สั่งการสำเร็จ',
+                text: `กำลังสั่งเครื่องจ่ายอาหาร ${amount} กรัม...`,
+                showConfirmButton: false,
+                timer: 1500
+            });
+        } else {
+            themeSwal.fire({ 
+                icon: 'warning', 
+                title: 'เครื่องออฟไลน์', 
+                text: 'ไม่สามารถส่งคำสั่งได้ เครื่องยังไม่เชื่อมต่อ' 
             });
         }
+    }
 
-        // URL ของ WebSocket
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = protocol + '//' + window.location.hostname + (window.location.port ? ':' + window.location.port : '');
-        const ws = new WebSocket(wsUrl);
-        
-        const imgElement = document.getElementById('liveStream');
-        const statusElement = document.getElementById('camStatus');
-        
-        const currentFeederID = '<%= dashboard.feederID %>'; 
-
-        ws.onopen = () => {
-            console.log('Connected to WS for Feeder ID:', currentFeederID); // log ดูหน่อยว่าได้เลขอะไร
-            statusElement.innerText = "Waiting for video...";
+    // ========================================
+    // Refresh Logs Function
+    // ========================================
+    async function refreshLogs() {
+        try {
+            const response = await fetch(`/api/feeder/${currentFeederID}/logs`);
+            const logs = await response.json();
             
-            ws.send(JSON.stringify({
-                type: 'watch',
-                feederID: currentFeederID
-            }));
+            const logList = document.getElementById('feedLogList');
+            logList.innerHTML = '';
 
-            ws.send(JSON.stringify({
-                type: 'force_update_client',
-                targetID: currentFeederID
-            }));
-        };
-
-        ws.onmessage = (event) => {
-            // ถ้าข้อมูลที่ส่งมาเป็น Blob (Binary Image)
-            if (event.data instanceof Blob) {
-                // แปลง Blob เป็น URL เพื่อแสดงใน <img src>
-                const url = URL.createObjectURL(event.data);
-                
-                // เคลียร์ URL เก่าเพื่อคืน Memory
-                imgElement.onload = () => {
-                    URL.revokeObjectURL(imgElement.src);
-                };
-                
-                imgElement.src = url;
-                statusElement.innerText = "🔴 Live";
-                statusElement.style.color = "green";
-            }
-        };
-
-        ws.onclose = () => {
-            statusElement.innerText = "💥Disconnected";
-            statusElement.style.color = "red";
-        };
-
-        async function fetchRealtimeData() {
-            try {
-                const response = await fetch(`/api/feeder/status/${currentFeederID}`);
-                const data = await response.json();
-                updateUI(data);
-            } catch (error) {
-                console.error("Error fetching data:", error);
-            }
-        }
-
-        function updateUI(data) {
-            const switchBtn = document.getElementById('masterSwitch');
-            const statusText = document.getElementById('masterStatusLabel'); 
-            
-            if (switchBtn) {
-                if (switchBtn.checked !== (data.isActive == 1)) {
-                    switchBtn.checked = (data.isActive == 1);
-                }
-            }
-            
-            if (statusText) {
-                if (data.isActive == 1) {
-                    statusText.innerText = "กำลังทำงาน";
-                    statusText.style.color = "green";
-                    statusText.className = "text-success fw-bold"; 
-                } else {
-                    statusText.innerText = "หยุดทำงาน";
-                    statusText.style.color = "gray";
-                    statusText.className = "text-muted fw-bold";
-                }
-            }
-
-            const foodText = document.getElementById('foodText');
-            if (foodText) {
-                foodText.innerText = data.foodLevel;
-            }
-            
-            const waterText = document.getElementById('waterText');
-            if (waterText) {
-                waterText.innerText = data.waterLevel;
-            }
-
-            const bowlFoodText = document.getElementById('bowlFoodText');
-            if (bowlFoodText) bowlFoodText.innerText = data.bowl_food; 
-            
-            const bowlWaterText = document.getElementById('bowlWaterText');
-            if (bowlWaterText) bowlWaterText.innerText = data.bowl_water;
-        }
-
-        setInterval(fetchRealtimeData, 3000);
-        fetchRealtimeData();
-
-
-        //feed อาหารแบบ manual
-        function sendManualFeed() {
-            const amountInput = document.getElementById('manualFeedAmount').value;
-            const amount = parseInt(amountInput);
-
-            if (isNaN(amount) || amount <= 0) {
-                // ✅ เปลี่ยนเป็น SweetAlert
-                themeSwal.fire({
-                    icon: 'error',
-                    title: 'ข้อมูลไม่ถูกต้อง',
-                    text: 'กรุณาใส่ปริมาณอาหารให้ถูกต้อง',
-                    confirmButtonText: 'ตกลง'
-                });
-                return;
-            }
-
-            if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'manual_feed', feederID: currentFeederID, amount: amount }));
-                
-                // ✅ เปลี่ยนจาก alert เป็น toast (แจ้งเตือนแบบไม่ต้องกดตกลง)
-                themeSwal.fire({
-                    icon: 'success',
-                    title: 'สั่งการสำเร็จ',
-                    text: `กำลังสั่งเครื่องจ่ายอาหาร ${amount} กรัม...`,
-                    showConfirmButton: false,
-                    timer: 1500 // หายไปเองใน 1.5 วินาที
+            if (logs.length > 0) {
+                logs.forEach(log => {
+                    const dateObj = new Date(log.feedAt);
+                    const timeStr = dateObj.toLocaleString('th-TH-u-ca-gregory', { 
+                        day: 'numeric', 
+                        month: 'short', 
+                        year: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    }) + ' น.';
+                    
+                    const isManual = log.type === 'manual';
+                    const iconClass = isManual ? 'fa-solid fa-hand text-warning' : 'fa-solid fa-clock text-primary';
+                    const badgeText = isManual ? 'สั่งมือ' : 'อัตโนมัติ';
+                    
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center py-3 border-bottom-0';
+                    li.innerHTML = `
+                        <div class="d-flex align-items-center">
+                            <div class="icon-box bg-light me-3" style="width: 36px; height: 36px; font-size: 14px;">
+                                <i class="${iconClass}"></i>
+                            </div>
+                            <div>
+                                <span class="d-block fw-bold text-dark">${log.amount} กรัม</span>
+                                <small class="text-muted">${timeStr}</small>
+                            </div>
+                        </div>
+                        <span class="badge bg-light text-dark border">${badgeText}</span>
+                    `;
+                    logList.appendChild(li);
                 });
             } else {
-                themeSwal.fire({ icon: 'warning', title: 'การเชื่อมต่อขัดข้อง', text: 'กรุณารอสักครู่...' });
+                logList.innerHTML = '<li class="list-group-item text-center text-muted py-5 border-bottom-0">ไม่มีประวัติการให้อาหาร</li>';
             }
+        } catch (error) {
+            console.error("Error refreshing logs:", error);
         }
+    }
 
-        async function refreshLogs() {
+    // ========================================
+    // Clear Logs Function
+    // ========================================
+    async function clearLogs() {
+        const result = await themeSwal.fire({
+            icon: 'warning',
+            title: 'ยืนยันการล้างประวัติ?',
+            text: 'ประวัติทั้งหมดจะถูกลบถาวร ไม่สามารถกู้คืนได้',
+            showCancelButton: true,
+            confirmButtonText: 'ใช่, ลบทิ้งเลย',
+            cancelButtonText: 'ยกเลิก',
+            confirmButtonColor: '#dc3545'
+        });
+
+        if (result.isConfirmed) {
             try {
-                const response = await fetch(`/api/feeder/${currentFeederID}/logs`);
-                const logs = await response.json();
+                const response = await fetch(`/api/feeder/${currentFeederID}/logs`, { method: 'DELETE' });
+                const data = await response.json();
                 
-                const logList = document.getElementById('feedLogList');
-                logList.innerHTML = '';
-
-                if (logs.length > 0) {
-                    logs.forEach(log => {
-                        const dateObj = new Date(log.feedAt);
-                        const timeStr = dateObj.toLocaleString('th-TH-u-ca-gregory', { 
-                            day: 'numeric', 
-                            month: 'short', 
-                            year: 'numeric', 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                        }) + ' น.';
-                        
-                        const isManual = log.type === 'manual';
-                        const iconClass = isManual ? 'fa-solid fa-hand text-warning' : 'fa-solid fa-clock text-primary';
-                        const badgeText = isManual ? 'สั่งมือ' : 'อัตโนมัติ';
-                        
-                        const li = document.createElement('li');
-                        li.className = 'list-group-item d-flex justify-content-between align-items-center py-3 border-bottom-0';
-                        li.innerHTML = `
-                            <div class="d-flex align-items-center">
-                                <div class="icon-box bg-light me-3" style="width: 36px; height: 36px; font-size: 14px;">
-                                    <i class="${iconClass}"></i>
-                                </div>
-                                <div>
-                                    <span class="d-block fw-bold text-dark">${log.amount} กรัม</span>
-                                    <small class="text-muted">${timeStr}</small>
-                                </div>
-                            </div>
-                            <span class="badge bg-light text-dark border">${badgeText}</span>
-                        `;
-                        logList.appendChild(li);
-                    });
-                } else {
-                    logList.innerHTML = '<li class="list-group-item text-center text-muted py-5 border-bottom-0">ไม่มีประวัติการให้อาหาร</li>';
+                if (data.success) {
+                    themeSwal.fire({ icon: 'success', title: 'ล้างประวัติสำเร็จ', timer: 1500, showConfirmButton: false });
+                    refreshLogs();
                 }
             } catch (error) {
-                console.error("Error refreshing logs:", error);
-                alert("ไม่สามารถรีเฟรชประวัติได้");
+                themeSwal.fire({ icon: 'error', title: 'ล้มเหลว', text: 'ไม่สามารถติดต่อ Server ได้' });
             }
         }
+    }
 
-        async function clearLogs() {
-            // ✅ ใช้ themeSwal ถามก่อนลบ
-            const result = await themeSwal.fire({
-                icon: 'warning',
-                title: 'ยืนยันการล้างประวัติ?',
-                text: 'ประวัติทั้งหมดจะถูกลบถาวร ไม่สามารถกู้คืนได้',
-                showCancelButton: true,
-                confirmButtonText: 'ใช่, ลบทิ้งเลย',
-                cancelButtonText: 'ยกเลิก',
-                confirmButtonColor: '#dc3545', // สีแดง
-            });
+    // ========================================
+    // Delete Schedule Function
+    // ========================================
+    function confirmDeleteSchedule(event, formElement) {
+        event.preventDefault(); 
 
+        themeSwal.fire({
+            icon: 'warning',
+            title: 'ยืนยันการลบตารางเวลา',
+            text: '⚠️ คำเตือน: ยืนยันที่จะลบตารางเวลานี้',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'ใช่, ลบทิ้งเลย!',
+            cancelButtonText: 'ยกเลิก'
+        }).then((result) => {
             if (result.isConfirmed) {
-                try {
-                    const response = await fetch(`/api/feeder/${currentFeederID}/logs`, { method: 'DELETE' });
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        themeSwal.fire({ icon: 'success', title: 'ล้างประวัติสำเร็จ', timer: 1500, showConfirmButton: false });
-                        refreshLogs();
-                    }
-                } catch (error) {
-                    themeSwal.fire({ icon: 'error', title: 'ล้มเหลว', text: 'ไม่สามารถติดต่อ Server ได้' });
-                }
+                formElement.submit();
             }
-        }
+        });
+    }
 
-        function confirmDeleteSchedule(event, formElement) {
-            event.preventDefault(); 
-
-            themeSwal.fire({
-                icon: 'warning',
-                title: 'ยืนยันการลบตารางเวลา',
-                text: '⚠️ คำเตือน: ยืนยันที่จะลบตารางเวลานี้',
-                showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'ใช่, ลบทิ้งเลย!',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    formElement.submit();
-                }
-            });
-        }
-    </script>
-    <%- include('partials/configModal') %>
+    // 🔥 ลบส่วนนี้ออก (ไม่ต้องใช้ Polling แล้ว)
+    // async function fetchRealtimeData() { ... }
+    // setInterval(fetchRealtimeData, 3000);
+    // fetchRealtimeData();
+</script>
+<%- include('partials/configModal') %>
 </body>
 </html>

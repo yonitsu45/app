@@ -148,7 +148,7 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
 
         // ถ้าเต็มหมดแล้ว (ไม่มีช่องว่าง)
         if (targetSlot === null) {
-             return res.send(`<script>alert('❌ เต็มแล้ว! (สูงสุด 3 รอบ)'); window.location.href = '/dashboard/${dashboardID}';</script>`);
+            return res.send(`<script>alert('❌ เต็มแล้ว! (สูงสุด 3 รอบ)'); window.location.href = '/dashboard/${dashboardID}';</script>`);
         }
 
         await db.promise().query(
@@ -160,7 +160,7 @@ router.post('/dashboard/:id/config', isLoggedIn, async (req, res) => {
 
     } catch (err) {
         console.error("Save Error:", err);
-        res.send(`<script>alert('Error: ${err.message}'); window.history.back();</script>`);
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', '', '/dashboard/' + dashboardID);
     }
 });
 
@@ -176,26 +176,6 @@ router.post('/config/delete/:id', isLoggedIn, async (req, res) => {
     } catch (err) {
         console.error("Delete Error:", err);
         res.status(500).send("ลบไม่สำเร็จ: " + err.message);
-    }
-});
-
-router.post('/feeder/status', isLoggedIn, async (req, res) => {
-    try {
-        const { feederID, isActive } = req.body;
-        
-        console.log(`เปลี่ยนสถานะเครื่อง ${feederID} เป็น: ${isActive}`);
-
-        // อัปเดตลงตาราง petfeeders
-        await db.promise().query(
-            'UPDATE petfeeders SET isActive = ? WHERE feederID = ?',
-            [isActive, feederID]
-        );
-
-        res.json({ success: true, message: 'บันทึกสถานะเรียบร้อย' });
-
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ success: false, message: err.message });
     }
 });
 

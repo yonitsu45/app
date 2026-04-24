@@ -68,7 +68,6 @@ function setupWebsocket(server) {
 
         ws.on('message', async (message) => {
             const msgString = message.toString();
-            
             //json checking
             const isJSON = msgString.trim().startsWith('{');
             const isBinary = Buffer.isBuffer(message);
@@ -101,11 +100,28 @@ function setupWebsocket(server) {
                 if (data.type === 'register') {
                     const token = data.token;
                     const [rows] = await db.promise().query('SELECT feederID FROM petfeeders WHERE feederToken = ?', [token]);
+                    
                     if (rows.length > 0) {
                         myFeederID = rows[0].feederID;
                         feeders.set(myFeederID, ws);
+                        
+                        // 🔥 อัปเดต DB isActive = 1 (เชื่อมต่อแล้ว)
                         await db.promise().query('UPDATE petfeeders SET isActive = 1 WHERE feederID = ?', [myFeederID]);
                         console.log(`✅ Feeder ID ${myFeederID} Online`);
+                        
+                        // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ ONLINE ให้ Viewers
+                        if (viewers.has(myFeederID)) {
+                            viewers.get(myFeederID).forEach(viewer => {
+                                if (viewer.readyState === WebSocket.OPEN) {
+                                    viewer.send(JSON.stringify({
+                                        type: 'device_status',
+                                        feederID: myFeederID,
+                                        status: 'online',
+                                        message: '🟢 เชื่อมต่อกับ Server แล้ว'
+                                    }));
+                                }
+                            });
+                        }
                         
                         notifyFeeder(myFeederID);
                     }
@@ -141,6 +157,22 @@ function setupWebsocket(server) {
                             'UPDATE petfeeders SET foodlvl = ?, waterlvl = ?, bowl_food = ?, bowl_water = ? WHERE feederID = ?',
                             [foodVal, waterVal, bowlFoodVal, bowlWaterVal, myFeederID]
                         );
+
+                        // 🔥 เพิ่มส่วนนี้: Broadcast ไปให้ Viewers
+                        if (viewers.has(myFeederID)) {
+                            viewers.get(myFeederID).forEach(viewer => {
+                                if (viewer.readyState === WebSocket.OPEN) {
+                                    viewer.send(JSON.stringify({
+                                        type: 'update_sensor',
+                                        feederID: myFeederID,
+                                        food: foodVal,
+                                        water: waterVal,
+                                        bowlFood: bowlFoodVal,
+                                        bowlWater: bowlWaterVal
+                                    }));
+                                }
+                            });
+                        }
                     }
                 }
 
@@ -222,6 +254,7 @@ function setupWebsocket(server) {
                         console.log(`⚠️ Feeder ${targetFeeder} is offline. Cannot manual feed.`);
                     }
                 }
+
             } catch (err) {
                 console.error("⚠️ Error processing message:", err.message);
             }
@@ -230,9 +263,26 @@ function setupWebsocket(server) {
         ws.on('close', async () => {
             if (myFeederID) {
                 feeders.delete(myFeederID);
+                
+                // 🔥 อัปเดต DB isActive = 0 (ตัดการเชื่อมต่อ)
                 await db.promise().query('UPDATE petfeeders SET isActive = 0 WHERE feederID = ?', [myFeederID]);
                 console.log(`❌ Feeder ${myFeederID} Disconnected`);
+                
+                // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ OFFLINE ให้ Viewers
+                if (viewers.has(myFeederID)) {
+                    viewers.get(myFeederID).forEach(viewer => {
+                        if (viewer.readyState === WebSocket.OPEN) {
+                            viewer.send(JSON.stringify({
+                                type: 'device_status',
+                                feederID: myFeederID,
+                                status: 'offline',
+                                message: '🔴 ตัดการเชื่อมต่อจาก Server'
+                            }));
+                        }
+                    });
+                }
             }
+            
             if (watchingID && viewers.has(watchingID)) {
                 viewers.get(watchingID).delete(ws);
                 if (viewers.get(watchingID).size === 0) {
