@@ -280,7 +280,6 @@ router.post('/feeder/notification', isLoggedIn, async (req, res) => {
     try {
         const { feederID, isActive } = req.body;
         
-        // 🔥 เพิ่ม Validation
         if (!feederID || isActive === undefined) {
             return res.status(400).json({ 
                 success: false, 
@@ -288,16 +287,15 @@ router.post('/feeder/notification', isLoggedIn, async (req, res) => {
             });
         }
 
-        // 🔥 เช็คว่า Feeder นี้เป็นของ User คนนี้ไหม
-        const [dash] = await db.promise().query(
-            'SELECT feederID FROM dashboards WHERE dashboardID IN (SELECT dashboardID FROM dashboards WHERE userID = ?) AND feederID = ?',
-            [req.session.user.userID, feederID]
+        const [feeder] = await db.promise().query(
+            'SELECT feederID FROM petfeeders WHERE feederID = ?',
+            [feederID]
         );
 
-        if (dash.length === 0) {
-            return res.status(403).json({ 
+        if (feeder.length === 0) {
+            return res.status(404).json({ 
                 success: false, 
-                message: 'Unauthorized: This feeder does not belong to you' 
+                message: 'Feeder not found' 
             });
         }
 

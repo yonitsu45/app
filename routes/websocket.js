@@ -133,7 +133,30 @@ function setupWebsocket(server) {
                     watchingID = parseInt(data.feederID);
                     if (!viewers.has(watchingID)) viewers.set(watchingID, new Set());
                     viewers.get(watchingID).add(ws);
+                    
                     console.log(`👀 Client watching Feeder ${watchingID}`);
+                    console.log(`📊 Current viewers for Feeder ${watchingID}: ${viewers.get(watchingID).size}`);
+                    
+                    // 🔥 ส่ง device_status ทันทีถ้า Feeder Online อยู่
+                    if (feeders.has(watchingID)) {
+                        // Feeder Online → ส่ง online status
+                        ws.send(JSON.stringify({
+                            type: 'device_status',
+                            feederID: watchingID,
+                            status: 'online',
+                            message: '🟢 เชื่อมต่อกับ Server แล้ว'
+                        }));
+                        console.log(`📡 Sent online status to new viewer (Feeder ${watchingID} is online)`);
+                    } else {
+                        // Feeder Offline → ส่ง offline status
+                        ws.send(JSON.stringify({
+                            type: 'device_status',
+                            feederID: watchingID,
+                            status: 'offline',
+                            message: '🔴 ตัดการเชื่อมต่อจาก Server'
+                        }));
+                        console.log(`📡 Sent offline status to new viewer (Feeder ${watchingID} is offline)`);
+                    }
                 }
                 
                 //force refresh
