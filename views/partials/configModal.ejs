@@ -1,58 +1,122 @@
 <div class="modal fade" id="addConfig" tabindex="-1" aria-labelledby="addConfig" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form action="/dashboard/<%= dashboard.feederID %>/config" method="POST" onsubmit="notifyServerUpdate()">
-                
-                <input type="hidden" name="dashboardID" value="<%= dashboard.dashboardID %>">
-                <div class="modal-header bg-primary text-white">
-                    <h5 class="modal-title" id="addDashboardLabel">⏰ เพิ่มเวลาให้อาหารใหม่</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            <!-- ��� เปลี่ยนจาก Form POST เป็น Input ธรรมดา -->
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="addDashboardLabel">⏰ เพิ่มเวลาให้อาหารใหม่</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">เลือกเวลา (ชั่วโมง : นาที)</label>
+                    <input type="time" id="feedTime" class="form-control" required> 
                 </div>
 
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">เลือกเวลา (ชั่วโมง : นาที)</label>
-                        <input type="time" name="feedTime" class="form-control" required> 
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="feedAmount" class="form-label">ปริมาณอาหารที่ปล่อย (กรัม)</label>
-                        <input type="number" 
-                               name="duration" 
-                               class="form-control" 
-                               id="feedAmount" 
-                               placeholder="เช่น 250" 
-                               required
-                               min="1"
-                               max="1000"
-                               oninput="this.value = !!this.value && Math.abs(this.value) >= 0 ? Math.abs(this.value) : null">
-                    </div>
+                <div class="mb-3">
+                    <label for="feedAmount" class="form-label">ปริมาณอาหารที่ปล่อย (กรัม)</label>
+                    <input type="number" 
+                           class="form-control" 
+                           id="feedAmount" 
+                           placeholder="เช่น 50" 
+                           required
+                           min="1"
+                           max="2000"
+                           step="10"
+                           value="10">
                 </div>
+            </div>
 
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="submit" class="btn btn-primary">บันทึก</button>
-                </div>
-            </form>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <!-- 🔥 เปลี่ยนจาก submit เป็น onclick -->
+                <button type="button" class="btn btn-primary" onclick="addScheduleViaWebSocket()">บันทึก</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
-    function notifyServerUpdate() {
-        // ดึง ID เครื่องปัจจุบันจาก EJS variable
-        const feederID = '<%= dashboard.feederID %>'; 
-        
-        if (typeof ws !== 'undefined' && ws.readyState === WebSocket.OPEN) {
-            
+    // ========================================
+    // Add Schedule via WebSocket
+    // ========================================
+    function addScheduleViaWebSocket() {
+        const feedTime = document.getElementById('feedTime').value;      // "10:30"
+        const feedAmount = parseInt(document.getElementById('feedAmount').value); // 50
+
+        console.log(`📅 Adding schedule: ${feedTime} - ${feedAmount}g`);
+
+        // 🔥 Validation
+        if (!feedTime || !feedAmount || feedAmount <= 0) {
+            themeSwal.fire({
+                icon: 'error',
+                title: 'ข้อมูลไม่ครบ',
+                text: 'กรุณากรอกเวลาและปริมาณให้ถูกต้อง',
+                confirmButtonText: 'ตกลง'
+            });
+            return;
+        }
+
+        // 🔥 เช็ค WebSocket ก่อน
+        if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) {
+            console.log(`❌ WebSocket not ready. State: ${ws ? ws.readyState : 'undefined'}`);
+            themeSwal.fire({
+                icon: 'error',
+                title: '❌ เครื่องไม่ออนไลน์',
+                text: 'ไม่สามารถเพิ่มตารางเวลาได้ เพราะเครื่องยังไม่เชื่อมต่อ',
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#dc3545'
+            });
+            return;
+        }
+
+        try {
+            const currentFeederID = '<%= dashboard.feederID %>';
+
+            // 🔥 ส่ง Command ผ่าน WebSocket
             ws.send(JSON.stringify({
-                type: 'force_update_client', // สั่งให้ Server รู้ว่ามีการอัปเดต
-                targetID: feederID
+                type: 'add_schedule_from_web',
+                feederID: currentFeederID,
+                feedTime: feedTime,      // "10:30"
+                feedAmount: feedAmount   // 50
             }));
-            
-            console.log("🔔 แจ้ง Server ให้รีเฟรช ESP32 เรียบร้อยแล้ว");
-        } else {
-            console.log("⚠️ WebSocket ยังไม่เชื่อมต่อ หรือตัวแปร ws หาไม่เจอ");
+
+            console.log(`✅ Sent add_schedule_from_web to WebSocket`);
+            console.log(`   Feeder: ${currentFeederID}, Time: ${feedTime}, Amount: ${feedAmount}g`);
+
+            // ✅ Show Success
+            themeSwal.fire({
+                icon: 'success',
+                title: 'เพิ่มตารางเวลาสำเร็จ',
+                text: `⏰ ${feedTime} - ${feedAmount}g`,
+                showConfirmButton: false,
+                timer: 1500
+            });
+
+            // 🔥 ปิด Modal
+            const modalElement = document.getElementById('addConfig');
+            const modal = bootstrap.Modal.getInstance(modalElement);
+            if (modal) {
+                modal.hide();
+            }
+
+            // 🔥 Clear Input
+            document.getElementById('feedTime').value = '';
+            document.getElementById('feedAmount').value = '50';
+
+            // 🔥 Refresh Page หลัง 2 วิ
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+
+        } catch (err) {
+            console.error('❌ Error sending schedule:', err);
+            themeSwal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: 'ไม่สามารถเพิ่มตารางเวลาได้',
+                confirmButtonText: 'ตกลง'
+            });
         }
     }
 </script>

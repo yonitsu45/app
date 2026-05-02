@@ -1,199 +1,183 @@
-const WebSocket = require('ws');
+const { Server } = require('ws');  // 🔥 แก้ตรงนี้
 const db = require('../db');
 
 let feeders = new Map();
+let cameras = new Map();
 let viewers = new Map();
 
-function setupWebsocket(server) {
-    const wss = new WebSocket.Server({ server });
+async function notifyFeeder(feederID) {
+    try {
+        // ดึงตารางเวลาทั้งหมด
+        const [schedules] = await db.promise().query(
+            'SELECT feedTime, feedAmount FROM feedconfig WHERE feederID = ? ORDER BY feedTime ASC',
+            [feederID]
+        );
 
-    //esp32 poking
-    async function notifyFeeder(feederID) {
-        if (!feeders.has(feederID)) return;
-
-        try {
-            const wsClient = feeders.get(feederID);
-            
-            //feedconfig pull
-            const [rows] = await db.promise().query(
-                'SELECT feedTime, feedAmount, slot FROM feedconfig WHERE feederID = ? ORDER BY slot ASC', 
-                [feederID]
-            );
-
-            let slots = [null, null, null]; 
-
-            //slot checking
-            rows.forEach(row => {
-                if (row.slot >= 1 && row.slot <= 3) {
-                    slots[row.slot - 1] = row;
-                }
-            });
-
-            let rawData = "";
-            let displayList = ""; 
-
-            slots.forEach((row, index) => {
-                if (row) {
-                    const [h, m, s] = row.feedTime.split(':');
-                    rawData += `${parseInt(h)}:${parseInt(m)}:${row.feedAmount};`;
-                    displayList += `${index+1}. ${h}:${m} (${row.feedAmount}g)\n`;
-                } else {
-                    rawData += ";"; 
-                    displayList += `${index+1}. --:--\n`;
-                }
-            });
-            
-            //sent json
-            if (wsClient.readyState === WebSocket.OPEN) {
-                wsClient.send(JSON.stringify({
-                    type: "schedule_update",
-                    raw: rawData,
-                    text: displayList
-                }));
-                console.log(`📡 Sent schedule to Feeder ${feederID}: ${rawData}`);
-            }
-        } catch (err) {
-            console.error("Notify Error:", err);
+        if (schedules.length === 0) {
+            console.log(`ℹ️ No schedules for Feeder ${feederID}`);
+            return;
         }
-    }
 
-//websocket connection
-    wss.on('connection', (ws) => {
-        let myFeederID = null; 
-        let watchingID = null; 
-
-        ws.on('error', (err) => {
-            console.error(`⚠️ WebSocket Error (Feeder ${myFeederID}):`, err.message);
+        // แปลงเป็นรูปแบบที่ ESP32 เข้าใจ (HH:MM:duration;HH:MM:duration;...)
+        let scheduleString = '';
+        schedules.forEach((schedule, index) => {
+            const [hour, minute] = schedule.feedTime.split(':');
+            scheduleString += `${hour}:${minute}:${schedule.feedAmount}`;
+            if (index < schedules.length - 1) scheduleString += ';';
         });
+
+        console.log(`📅 Schedule string for Feeder ${feederID}: ${scheduleString}`);
+
+        // ส่งไปให้ Main Board (feeders)
+        if (feeders.has(feederID)) {
+            const espWs = feeders.get(feederID);
+
+            if (espWs.readyState === WebSocket.OPEN) {
+                espWs.send(JSON.stringify({
+                    type: 'schedule_update',
+                    raw: scheduleString
+                }));
+                console.log(`📤 Sent schedule to Main Board (Feeder ${feederID})`);
+            } else {
+                console.log(`❌ Main Board not OPEN (readyState: ${espWs.readyState})`);
+            }
+        } else {
+            console.log(`⚠️ Main Board (Feeder ${feederID}) not connected`);
+        }
+
+    } catch (err) {
+        console.error('Error in notifyFeeder:', err.message);
+    }
+}
+
+function setupWebsocket(server) {
+    const wss = new Server({ server });
+
+    wss.on('connection', (ws) => {
+        let myFeederID = null;
+        let myRole = null;           // 🔥 เพิ่ม: เก็บ Role ของ Connection
+        let watchingID = null;
 
         ws.on('message', async (message) => {
             const msgString = message.toString();
-            //json checking
             const isJSON = msgString.trim().startsWith('{');
             const isBinary = Buffer.isBuffer(message);
             const isImageHeader = msgString.substring(0, 50).includes('JFIF');
 
-            //streaming
+            // ===== Handle Binary (Camera Stream) =====
             if ((isBinary || isImageHeader) && !isJSON) {
+                // 🔥 ส่งไปให้ Main board (Feeder) ไม่ใช่ Camera
                 if (myFeederID && viewers.has(myFeederID)) {
                     const clients = viewers.get(myFeederID);
                     clients.forEach(client => {
                         if (client.readyState === WebSocket.OPEN) {
-                            client.send(message); 
+                            client.send(message);
                         }
                     });
                 }
-                return; 
+                return;
             }
 
-            //json
+            // ===== Handle JSON =====
             try {
                 const data = JSON.parse(msgString);
 
-                if (data.type === 'ack') {
-                    if (myFeederID) {
-                        console.log(`✅ [ACK] Feeder ${myFeederID} ยืนยันการรับข้อมูล: ${data.msg}`);
-                    }
-                }
-
-                //register token
+                // 🔥 Handle Register - แยกตาม Role
                 if (data.type === 'register') {
+                    // โค้ดใหม่ ESP32 ส่ง deviceId มาด้วย
                     const token = data.token;
-                    const [rows] = await db.promise().query('SELECT feederID FROM petfeeders WHERE feederToken = ?', [token]);
-                    
+                    const role = data.role;
+                    const deviceId = data.deviceId; // ดึง deviceId มาใช้
+
+                    console.log(`📋 Register request - Device: ${deviceId}, Role: ${role}, Token: ${token}`);
+
+                    const [rows] = await db.promise().query(
+                        'SELECT feederID FROM petfeeders WHERE feederToken = ?',
+                        [token] // ยังคงเช็คกับ Token ใน DB เหมือนเดิม
+                    );
+
                     if (rows.length > 0) {
                         myFeederID = rows[0].feederID;
-                        feeders.set(myFeederID, ws);
-                        
-                        // 🔥 อัปเดต DB isActive = 1 (เชื่อมต่อแล้ว)
+                        myRole = role;
+
+                        // 🔥 เก็บ Connection
+                        if (role === 'main') {
+                            feeders.set(myFeederID, ws);
+                            console.log(`✅ Main Board (Feeder ${myFeederID}) Connected`);
+                        } else if (role === 'camera') {
+                            cameras.set(myFeederID, ws);
+                            console.log(`✅ Camera Board (Feeder ${myFeederID}) Connected`);
+                        }
+
+                        // 🔥 อัปเดต DB
                         await db.promise().query(
-                            'UPDATE petfeeders SET wsConnected = 1 WHERE feederID = ?', 
+                            'UPDATE petfeeders SET wsConnected = 1 WHERE feederID = ?',
                             [myFeederID]
                         );
-                        console.log(`✅ Feeder ID ${myFeederID} Online (WebSocket Connected)`);
 
-                        // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ ONLINE ให้ Viewers
+                        // 🔥 **ส่วนสำคัญ**: Broadcast Status ปัจจุบันให้ Viewers
                         if (viewers.has(myFeederID)) {
+                            const mainConnected = feeders.has(myFeederID);
+                            const cameraConnected = cameras.has(myFeederID);
+
                             viewers.get(myFeederID).forEach(viewer => {
                                 if (viewer.readyState === WebSocket.OPEN) {
                                     viewer.send(JSON.stringify({
                                         type: 'device_status',
                                         feederID: myFeederID,
-                                        status: 'online',
-                                        message: '🟢 เชื่อมต่อกับ Server แล้ว'
+                                        status: 'online', 
+                                        mainConnected: mainConnected,
+                                        cameraConnected: cameraConnected,
+                                        message: mainConnected || cameraConnected ? '🟢 Device Online' : '🔴 Device Offline'
                                     }));
                                 }
                             });
                         }
-                        notifyFeeder(myFeederID);
+                    } else {
+                            console.log(`⚠️ Register failed: Token not found in DB`);
                     }
                 }
 
+                // ===== Handle Watch =====
                 if (data.type === 'watch') {
                     watchingID = parseInt(data.feederID);
                     if (!viewers.has(watchingID)) viewers.set(watchingID, new Set());
                     viewers.get(watchingID).add(ws);
-                    
-                    console.log(`👀 Client watching Feeder ${watchingID}`);
-                    console.log(`📊 Current viewers for Feeder ${watchingID}: ${viewers.get(watchingID).size}`);
-                    
-                    // 🔥 ส่ง device_status ทันทีถ้า Feeder Online อยู่
-                    if (feeders.has(watchingID)) {
-                        // Feeder Online → ส่ง online status
-                        ws.send(JSON.stringify({
-                            type: 'device_status',
-                            feederID: watchingID,
-                            status: 'online',
-                            message: '🟢 เชื่อมต่อกับ Server แล้ว'
-                        }));
-                        console.log(`📡 Sent online status to new viewer (Feeder ${watchingID} is online)`);
-                    } else {
-                        // Feeder Offline → ส่ง offline status
-                        ws.send(JSON.stringify({
-                            type: 'device_status',
-                            feederID: watchingID,
-                            status: 'offline',
-                            message: '🔴 ตัดการเชื่อมต่อจาก Server'
-                        }));
-                        console.log(`📡 Sent offline status to new viewer (Feeder ${watchingID} is offline)`);
-                    }
-                }
-                
-                //force refresh
-                if (data.type === 'force_update_client') {
-                    const targetID = parseInt(data.targetID);
-                    setTimeout(() => notifyFeeder(targetID), 1000); 
+
+                    console.log(`👀 Viewer watching Feeder ${watchingID}`);
+
+                    // 🔥 ส่ง Status ปัจจุบัน
+                    const mainConnected = feeders.has(watchingID);
+                    const cameraConnected = cameras.has(watchingID);
+
+                    ws.send(JSON.stringify({
+                        type: 'device_status',
+                        feederID: watchingID,
+                        status: mainConnected ? 'online' : 'offline',
+                        mainConnected: mainConnected,    // 🔥 บอก Main Status
+                        cameraConnected: cameraConnected, // 🔥 บอก Camera Status
+                        message: mainConnected ? '🟢 Main Online' : '🔴 Main Offline'
+                    }));
                 }
 
-                //schedule request
-                if (data.type === 'get_schedule') {
-                    if (myFeederID) notifyFeeder(myFeederID);
-                }
-
-                //sensor
-                if (data.type === 'update_sensor') {
+                // ===== Handle Update Sensor (จาก Main Board) =====
+                if (data.type === 'update_sensor' && myRole === 'main') {
                     if (myFeederID) {
-                        const foodVal = data.food;
-                        const waterVal = data.water;
-                        const bowlFoodVal = data.bowlFood; 
-                        const bowlWaterVal = data.bowlWater;
+                        const { food, water, bowlFood, bowlWater } = data;
 
                         await db.promise().query(
                             'UPDATE petfeeders SET foodlvl = ?, waterlvl = ?, bowl_food = ?, bowl_water = ? WHERE feederID = ?',
-                            [foodVal, waterVal, bowlFoodVal, bowlWaterVal, myFeederID]
+                            [food, water, bowlFood, bowlWater, myFeederID]
                         );
 
-                        // 🔥 เพิ่มส่วนนี้: Broadcast ไปให้ Viewers
+                        // 🔥 Broadcast ไปให้ Viewers
                         if (viewers.has(myFeederID)) {
                             viewers.get(myFeederID).forEach(viewer => {
                                 if (viewer.readyState === WebSocket.OPEN) {
                                     viewer.send(JSON.stringify({
                                         type: 'update_sensor',
                                         feederID: myFeederID,
-                                        food: foodVal,
-                                        water: waterVal,
-                                        bowlFood: bowlFoodVal,
-                                        bowlWater: bowlWaterVal
+                                        food, water, bowlFood, bowlWater
                                     }));
                                 }
                             });
@@ -201,102 +185,260 @@ function setupWebsocket(server) {
                     }
                 }
 
-                //schedule
-                if (data.type === 'add_schedule_from_esp') {
-                    if (myFeederID) {
-                        const timeVal = data.time;     
-                        const gramVal = data.duration; 
-                        const slotVal = data.slot;
-
-                        console.log(`🤖 ESP Update Slot ${slotVal}: ${timeVal} (${gramVal}g)`);
-
-                        //delete schedule
-                        await db.promise().query(
-                            'DELETE FROM feedconfig WHERE feederID = ? AND slot = ?', 
-                            [myFeederID, slotVal]
-                        );
-
-                        //insert schedule
-                        await db.promise().query(
-                            'INSERT INTO feedconfig (feederID, type, feedTime, feedAmount, slot) VALUES (?, ?, ?, ?, ?)',
-                            [myFeederID, 'food', timeVal, gramVal, slotVal]
-                        );
-
-                        notifyFeeder(myFeederID);
-                    }
-                }
-                //schedule delete from esp32
-                if (data.type === 'delete_schedule_from_esp') {
-                    if (myFeederID) {
-                        const timeVal = data.time;
-
-                        console.log(`🗑️ ESP requested DELETE time: ${timeVal}`);
-
-                        await db.promise().query(
-                            "DELETE FROM feedconfig WHERE feederID = ? AND DATE_FORMAT(feedTime, '%H:%i') = ?", 
-                            [myFeederID, timeVal]
-                        );
-
-                        notifyFeeder(myFeederID);
-                    }
-                }
-
-                if (data.type === 'feed_log') {
-                    if (myFeederID) {
-                        const amountVal = data.amount;
-                        const sourceVal = data.source;
-
-                        console.log(`📝 Log: Feeder ${myFeederID} fed ${amountVal}g via ${sourceVal}`);
-
-                        await db.promise().query(
-                            'INSERT INTO feedlogs (feederID, amount, type, feedAt) VALUES (?, ?, ?, NOW())',
-                            [myFeederID, amountVal, sourceVal]
-                        );
-                    }
-                }
-
+                // ===== Handle Manual Feed =====
                 if (data.type === 'manual_feed') {
                     const targetFeeder = parseInt(data.feederID);
                     const feedAmount = parseInt(data.amount);
 
                     console.log(`🌐 Web requested manual feed: ${feedAmount}g for Feeder ${targetFeeder}`);
 
+                    // 🔥 ส่งไปให้ Main Board (feeders) ไม่ใช่ Camera
                     if (feeders.has(targetFeeder)) {
                         const espWs = feeders.get(targetFeeder);
-                        
+
                         if (espWs.readyState === WebSocket.OPEN) {
                             espWs.send(JSON.stringify({
                                 type: 'manual_feed',
                                 amount: feedAmount
                             }));
-                            // 🔥 เติมบรรทัดนี้ลงไป เพื่อเช็คว่า Node.js ยิงออกไปจริงๆ
-                            console.log(`✅ [Success] ยิงคำสั่งหมุนมอเตอร์ ${feedAmount}g ไปหา ESP32 สำเร็จ!`);
+                            console.log(`✅ Sent manual_feed to Main Board (Feeder ${targetFeeder})`);
                         } else {
-                            // 🔥 เติมบรรทัดนี้ เผื่อสายหลุดแต่ยังค้างในระบบ
-                            console.log(`❌ [Fail] ESP32 เชื่อมต่ออยู่ แต่สถานะไม่ใช่ OPEN (ReadyState: ${espWs.readyState})`);
+                            console.log(`❌ Main Board not OPEN`);
                         }
                     } else {
-                        console.log(`⚠️ Feeder ${targetFeeder} is offline. Cannot manual feed.`);
+                        console.log(`⚠️ Main Board Feeder ${targetFeeder} is offline`);
                     }
                 }
 
+                // ===== Handle Feed Log (จาก Main Board) =====
+                if (data.type === 'feed_log' && myRole === 'main') {
+                    if (myFeederID) {
+                        const { amount, source } = data;
+                        await db.promise().query(
+                            'INSERT INTO feedlogs (feederID, amount, type, feedAt) VALUES (?, ?, ?, NOW())',
+                            [myFeederID, amount, source]
+                        );
+                        console.log(`📝 Logged: ${amount}g from ${source}`);
+                    }
+                }
+
+                if (data.type === 'add_schedule_from_web') {
+                    const targetFeeder = parseInt(data.feederID);
+                    const feedTime = data.feedTime;      // "10:30"
+                    const feedAmount = data.feedAmount;  // 50
+
+                    console.log(`📅 Add schedule from Web: ${feedTime} - ${feedAmount}g for Feeder ${targetFeeder}`);
+
+                    try {
+                        // 🔥 บันทึกลง DB
+                        const timeForDB = `${feedTime}:00`;
+                        
+                        const [existing] = await db.promise().query(
+                            'SELECT * FROM feedconfig WHERE feederID = ? AND feedTime = ?',
+                            [targetFeeder, timeForDB]
+                        );
+
+                        if (existing.length > 0) {
+                            console.log(`⚠️ Schedule already exists`);
+                            return;
+                        }
+
+                        await db.promise().query(
+                            'INSERT INTO feedconfig (feederID, feedTime, feedAmount) VALUES (?, ?, ?)',
+                            [targetFeeder, timeForDB, feedAmount]
+                        );
+
+                        console.log(`✅ Schedule saved to DB`);
+
+                        // 🔥 ส่งไปให้ Main Board ให้ส่ง Schedule ใหม่
+                        if (feeders.has(targetFeeder)) {
+                            const espWs = feeders.get(targetFeeder);
+
+                            if (espWs && espWs.readyState === WebSocket.OPEN) {
+                                // ดึงตารางเวลาทั้งหมด
+                                const [schedules] = await db.promise().query(
+                                    'SELECT feedTime, feedAmount FROM feedconfig WHERE feederID = ? ORDER BY feedTime ASC',
+                                    [targetFeeder]
+                                );
+
+                                let scheduleString = '';
+                                schedules.forEach((schedule, index) => {
+                                    const [hour, minute] = schedule.feedTime.split(':');
+                                    scheduleString += `${hour}:${minute}:${schedule.feedAmount}`;
+                                    if (index < schedules.length - 1) scheduleString += ';';
+                                });
+
+                                espWs.send(JSON.stringify({
+                                    type: 'schedule_update',
+                                    raw: scheduleString
+                                }));
+
+                                console.log(`📤 Sent updated schedule to Main Board: ${scheduleString}`);
+                            } else {
+                                console.log(`❌ Main Board not OPEN`);
+                            }
+                        } else {
+                            console.log(`⚠️ Main Board (Feeder ${targetFeeder}) offline`);
+                        }
+
+                    } catch (err) {
+                        console.error('❌ Error adding schedule:', err.message);
+                    }
+                }
+
+                // ===== Handle Delete Schedule from Web =====
+                if (data.type === 'delete_schedule_from_web') {
+                    const targetFeeder = parseInt(data.feederID);
+                    const configID = parseInt(data.configID);
+
+                    console.log(`🗑️ Delete schedule from Web: Config ${configID} for Feeder ${targetFeeder}`);
+
+                    try {
+                        // 🔥 ลบจาก DB
+                        await db.promise().query(
+                            'DELETE FROM feedconfig WHERE conID = ? AND feederID = ?',
+                            [configID, targetFeeder]
+                        );
+
+                        console.log(`✅ Schedule deleted from DB`);
+
+                        // 🔥 ส่งตารางเวลาที่อัปเดตไปให้ Main Board
+                        if (feeders.has(targetFeeder)) {
+                            const espWs = feeders.get(targetFeeder);
+
+                            if (espWs && espWs.readyState === WebSocket.OPEN) {
+                                // ดึงตารางเวลาที่เหลือ
+                                const [schedules] = await db.promise().query(
+                                    'SELECT feedTime, feedAmount FROM feedconfig WHERE feederID = ? ORDER BY feedTime ASC',
+                                    [targetFeeder]
+                                );
+
+                                let scheduleString = '';
+                                if (schedules.length > 0) {
+                                    schedules.forEach((schedule, index) => {
+                                        const [hour, minute] = schedule.feedTime.split(':');
+                                        scheduleString += `${hour}:${minute}:${schedule.feedAmount}`;
+                                        if (index < schedules.length - 1) scheduleString += ';';
+                                    });
+                                } else {
+                                    scheduleString = '';  // ถ้าลบหมดเลย
+                                }
+
+                                espWs.send(JSON.stringify({
+                                    type: 'schedule_update',
+                                    raw: scheduleString
+                                }));
+
+                                console.log(`📤 Sent updated schedule to Main Board: ${scheduleString || '(empty)'}`);
+                            } else {
+                                console.log(`❌ Main Board not OPEN`);
+                            }
+                        } else {
+                            console.log(`⚠️ Main Board (Feeder ${targetFeeder}) offline`);
+                        }
+
+                    } catch (err) {
+                        console.error('❌ Error deleting schedule:', err.message);
+                    }
+                }
+
+                // ===== 3. Handle Add Schedule from ESP32 =====
+                if (data.type === 'add_schedule_from_esp') {
+                    const targetFeeder = myFeederID;
+                    const feedTime = data.time;         // รูปแบบ "HH:MM"
+                    const feedAmount = data.duration;   // น้ำหนัก (กรัม)
+                    const slot = data.slot;             // ช่องที่ 1, 2, 3
+
+                    console.log(`📱 ESP32 added schedule: Slot ${slot} -> ${feedTime} - ${feedAmount}g`);
+
+                    try {
+                        const timeForDB = `${feedTime}:00`;
+
+                        // เช็คว่าเวลานี้มีอยู่แล้วหรือยัง ถ้ามีให้ Update ถ้าไม่มีให้ Insert
+                        const [existing] = await db.promise().query(
+                            'SELECT * FROM feedconfig WHERE feederID = ? AND feedTime = ?',
+                            [targetFeeder, timeForDB]
+                        );
+
+                        if (existing.length === 0) {
+                            await db.promise().query(
+                                'INSERT INTO feedconfig (feederID, feedTime, feedAmount, slot) VALUES (?, ?, ?, ?)',
+                                [targetFeeder, timeForDB, feedAmount, slot]
+                            );
+                            console.log(`✅ ESP32 Schedule saved to Web DB`);
+                        }
+                    } catch (err) {
+                        console.error('❌ Error saving ESP32 schedule:', err.message);
+                    }
+                }
+
+                // ===== 4. Handle Delete Schedule from ESP32 =====
+                if (data.type === 'delete_schedule_from_esp') {
+                    const targetFeeder = myFeederID;
+                    const feedTime = data.time; // รูปแบบ "HH:MM"
+
+                    console.log(`📱 ESP32 deleted schedule at: ${feedTime}`);
+
+                    try {
+                        const timeForDB = `${feedTime}:00`;
+                        await db.promise().query(
+                            'DELETE FROM feedconfig WHERE feederID = ? AND feedTime = ?',
+                            [targetFeeder, timeForDB]
+                        );
+                        console.log(`✅ ESP32 Schedule deleted from Web DB`);
+                    } catch (err) {
+                        console.error('❌ Error deleting ESP32 schedule:', err.message);
+                    }
+                }
+
+                // ===== Handle Factory Reset (จาก Main Board) =====
+                if (data.type === 'factory_reset' && myRole === 'main') {
+                     if (myFeederID) {
+                          console.log(`⚠️ Factory Reset requested for Feeder ${myFeederID} by Device ${data.deviceId}`);
+                          
+                          try {
+                               // ลบตารางเวลา
+                               await db.promise().query('DELETE FROM feedconfig WHERE feederID = ?', [myFeederID]);
+                               // ลบประวัติ
+                               await db.promise().query('DELETE FROM feedlogs WHERE feederID = ?', [myFeederID]);
+                               // รีเซ็ตการตั้งค่าเครื่องและเจ้าของ
+                               await db.promise().query(
+                                   'UPDATE petfeeders SET userID = NULL, isActive = 0, wsConnected = 0, feederName = ? WHERE feederID = ?', 
+                                   ['Smart Pet Feeder', myFeederID]
+                               );
+                               // ลบ Dashboard ที่ผูกอยู่
+                               await db.promise().query('DELETE FROM dashboards WHERE feederID = ?', [myFeederID]);
+
+                               console.log(`✅ Factory Reset completed for Feeder ${myFeederID}`);
+                          } catch (err) {
+                               console.error(`❌ Error during Factory Reset:`, err.message);
+                          }
+                     }
+                }
+
             } catch (err) {
-                console.error("⚠️ Error processing message:", err.message);
+                console.error("Message error:", err.message);
             }
         });
 
+        // ===== Handle Close =====
         ws.on('close', async () => {
             if (myFeederID) {
-                feeders.delete(myFeederID);
-                
-                // 🔥 อัปเดต DB isActive = 0 (ตัดการเชื่อมต่อ)
+                if (myRole === 'main') {
+                    feeders.delete(myFeederID);
+                    console.log(`❌ Main Board (Feeder ${myFeederID}) Disconnected`);
+                } else if (myRole === 'camera') {
+                    cameras.delete(myFeederID);
+                    console.log(`❌ Camera Board (Feeder ${myFeederID}) Disconnected`);
+                }
+
+                // 🔥 อัปเดต DB
                 await db.promise().query(
-                    'UPDATE petfeeders SET wsConnected = 0 WHERE feederID = ?', 
+                    'UPDATE petfeeders SET wsConnected = 0 WHERE feederID = ?',
                     [myFeederID]
                 );
-                console.log(`❌ Feeder ${myFeederID} Offline (WebSocket Disconnected)`);
-                
-                // 🔥 เพิ่มส่วนนี้: Broadcast สถานะ OFFLINE ให้ Viewers
+
+                // 🔥 Broadcast Offline Status
                 if (viewers.has(myFeederID)) {
                     viewers.get(myFeederID).forEach(viewer => {
                         if (viewer.readyState === WebSocket.OPEN) {
@@ -304,13 +446,14 @@ function setupWebsocket(server) {
                                 type: 'device_status',
                                 feederID: myFeederID,
                                 status: 'offline',
-                                message: '🔴 ตัดการเชื่อมต่อจาก Server'
+                                role: myRole,
+                                message: `🔴 ${myRole.toUpperCase()} Offline`
                             }));
                         }
                     });
                 }
             }
-            
+
             if (watchingID && viewers.has(watchingID)) {
                 viewers.get(watchingID).delete(ws);
                 if (viewers.get(watchingID).size === 0) {

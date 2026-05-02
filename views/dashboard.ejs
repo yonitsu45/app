@@ -345,7 +345,7 @@
     // ========================================
     // WebSocket Message Handler (Real-time)
     // ========================================
-    ws.onmessage = (event) => {
+     ws.onmessage = (event) => {
         // ===== Handle Binary (Camera Stream) =====
         if (event.data instanceof Blob) {
             const url = URL.createObjectURL(event.data);
@@ -360,22 +360,30 @@
         try {
             const data = JSON.parse(event.data);
 
-            // 🔥 1️⃣ Device Status (MAIN - Check ESP32 Connection)
+            // 🔥 Device Status - อัปเดตตามสถานะจริง
             if (data.type === 'device_status') {
-                console.log(`📡 Device Status: ${data.status}`);
+                console.log(`📡 Device Status: Main=${data.mainConnected}, Camera=${data.cameraConnected}`);
                 
-                if (data.status === 'online') {
-                    // ✅ ESP32 เชื่อมต่อมาแล้ว
-                    statusLabel.innerText = '🟢 เชื่อมต่อแล้ว (Online)';
+                // 🔥 ถ้า Main หรือ Camera ติดอย่างน้อยหนึ่งตัว → Online
+                if (data.mainConnected || data.cameraConnected) {
+                    let statusText = '🟢 Connected: ';
+                    const parts = [];
+                    
+                    if (data.mainConnected) parts.push('Main');
+                    if (data.cameraConnected) parts.push('Camera');
+                    
+                    statusText += parts.join(' + ');
+                    
+                    statusLabel.innerText = statusText;
                     statusLabel.className = 'text-success fw-bold';
-                } else if (data.status === 'offline') {
-                    // ❌ ESP32 ตัดการเชื่อมต่อ
-                    statusLabel.innerText = '🔴 ตัดการเชื่อมต่อ (Offline)';
+                } else {
+                    // ทั้ง Main และ Camera ไม่ติด → Offline
+                    statusLabel.innerText = '🔴 Offline';
                     statusLabel.className = 'text-danger fw-bold';
                 }
             }
 
-            // 🔥 2️⃣ Sensor Update (Real-time from ESP32)
+            // Sensor Update
             if (data.type === 'update_sensor') {
                 const foodText = document.getElementById('foodText');
                 if (foodText) foodText.innerText = data.food;
@@ -390,13 +398,8 @@
                 if (bowlWaterText) bowlWaterText.innerText = data.bowlWater;
             }
 
-            // 3️⃣ Schedule Update
-            if (data.type === 'schedule_update') {
-                console.log('📅 Schedule updated');
-            }
-
         } catch (err) {
-            console.log('Non-JSON message received');
+            console.log('Non-JSON message');
         }
     };
 
@@ -535,31 +538,96 @@
     }
 
     // ========================================
-    // Delete Schedule Function
-    // ========================================
-    function confirmDeleteSchedule(event, formElement) {
-        event.preventDefault(); 
+// Delete Schedule Function
+// ========================================
+function confirmDeleteSchedule(event, formElement) {
+    event.preventDefault(); 
 
-        themeSwal.fire({
-            icon: 'warning',
-            title: 'ยืนยันการลบตารางเวลา',
-            text: '⚠️ คำเตือน: ยืนยันที่จะลบตารางเวลานี้',
-            showCancelButton: true,
-            confirmButtonColor: '#dc3545',
-            cancelButtonColor: '#6c757d',
-            confirmButtonText: 'ใช่, ลบทิ้งเลย!',
-            cancelButtonText: 'ยกเลิก'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                formElement.submit();
-            }
+    // ดึง conID จาก Form
+    const configID = formElement.getAttribute('action').split('/').pop();
+    const dashboardID = formElement.querySelector('input[name="dashboardID"]').value;
+
+    themeSwal.fire({
+        icon: 'warning',
+        title: 'ยืนยันการลบตารางเวลา',
+        text: '⚠️ คำเตือน: ยืนยันที่จะลบตารางเวลานี้',
+        showCancelButton: true,
+        confirmButtonColor: '#dc3545',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'ใช่, ลบทิ้งเลย!',
+        cancelButtonText: 'ยกเลิก'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // 🔥 ส่ง Delete Command ผ่าน WebSocket
+            deleteScheduleViaWebSocket(configID, dashboardID);
+        }
+    });
+}
+
+// ========================================
+// Delete Schedule via WebSocket
+// ========================================
+function deleteScheduleViaWebSocket(configID, dashboardID) {
+    const currentFeederID = '<%= dashboard.feederID %>';
+
+    console.log(`🗑️ Deleting schedule: Config ${configID}`);
+
+    if (typeof ws === 'undefined' || !ws || ws.readyState !== WebSocket.OPEN) {
+        console.log(`⚠️ WebSocket not connected, using HTTP DELETE`);
+        
+        // 🔥 Fallback: ใช้ HTTP DELETE ถ้า WebSocket ไม่พร้อม
+        fetch(`/config/delete/${configID}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dashboardID: dashboardID })
+        })
+        .then(() => {
+            themeSwal.fire({
+                icon: 'success',
+                title: 'ลบสำเร็จ',
+                text: 'ลบตารางเวลาเรียบร้อยแล้ว',
+                showConfirmButton: false,
+                timer: 1500
+            });
+            setTimeout(() => location.reload(), 1500);
+        })
+        .catch(err => {
+            console.error('❌ Delete error:', err);
         });
+        return;
     }
 
-    // 🔥 ลบส่วนนี้ออก (ไม่ต้องใช้ Polling แล้ว)
-    // async function fetchRealtimeData() { ... }
-    // setInterval(fetchRealtimeData, 3000);
-    // fetchRealtimeData();
+    try {
+        // 🔥 ส่ง Delete Command ผ่าน WebSocket
+        ws.send(JSON.stringify({
+            type: 'delete_schedule_from_web',
+            feederID: currentFeederID,
+            configID: configID
+        }));
+
+        console.log(`✅ Sent delete_schedule_from_web to WebSocket`);
+
+        themeSwal.fire({
+            icon: 'success',
+            title: 'ลบสำเร็จ',
+            text: 'ลบตารางเวลาเรียบร้อยแล้ว',
+            showConfirmButton: false,
+            timer: 1500
+        });
+
+        // 🔥 Refresh Page
+        setTimeout(() => location.reload(), 1500);
+
+    } catch (err) {
+        console.error('❌ Error deleting schedule:', err);
+        themeSwal.fire({
+            icon: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            text: 'ไม่สามารถลบตารางเวลาได้',
+            confirmButtonText: 'ตกลง'
+        });
+    }
+}
 </script>
 <%- include('partials/configModal') %>
 </body>

@@ -280,28 +280,24 @@ router.post('/feeder/notification', isLoggedIn, async (req, res) => {
     try {
         const { feederID, isActive } = req.body;
         
-        if (!feederID || isActive === undefined) {
-            return res.status(400).json({ 
-                success: false, 
-                message: 'Missing required parameters' 
-            });
-        }
-
-        const [feeder] = await db.promise().query(
-            'SELECT feederID FROM petfeeders WHERE feederID = ?',
-            [feederID]
-        );
-
-        if (feeder.length === 0) {
-            return res.status(404).json({ 
-                success: false, 
-                message: 'Feeder not found' 
-            });
-        }
-
         console.log(`🔔 เปลี่ยนสถานะแจ้งเตือน Feeder ${feederID} เป็น: ${isActive}`);
 
-        // อัปเดต isActive
+        // 🔥 แก้ Query ให้ถูก
+        const [dash] = await db.promise().query(
+            `SELECT d.dashboardID 
+             FROM dashboards d 
+             WHERE d.userID = ? AND d.feederID = ?`,
+            [req.session.user.userID, feederID]
+        );
+
+        if (dash.length === 0) {
+            return res.status(403).json({ 
+                success: false, 
+                message: 'Unauthorized: This feeder does not belong to you' 
+            });
+        }
+
+        // ✅ อัปเดต isActive
         await db.promise().query(
             'UPDATE petfeeders SET isActive = ? WHERE feederID = ?',
             [isActive, feederID]

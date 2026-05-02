@@ -30,11 +30,11 @@ router.post('/addToken', isLoggedIn, async (req, res) => {
         console.log(`Added new token to system: ${token}`);
 
         //success
-        return res.send("<script>alert('เพิ่ม Token เข้าระบบสำเร็จ!'); window.location.href='/admindashboard';</script>");
+        return sendAlert(res, 'success', 'เพิ่ม Token สำเร็จ', 'เพิ่ม Token เข้าสู่ระบบสำเร็จ', '/index');
 
     } catch (err) {
         console.error("Insert Token Error:", err);
-        return res.send("<script>alert('เกิดข้อผิดพลาดในการบันทึก'); window.history.back();</script>");
+        return sendAlert(res, 'error', 'เพิ่ม Token ไม่สำเร็จ', 'เกิดข้อผิดพลาด', '/index');
     }
 });
 

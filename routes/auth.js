@@ -307,7 +307,8 @@ router.post('/feeder/update', async (req, res) => {
         return res.redirect('/login');
     }
 
-    const { feederID, feederName, ownerID } = req.body;
+    // ✅ เพิ่มการรับค่า token เข้ามาด้วย
+    const { feederID, feederName, ownerID, token } = req.body;
 
     //null owner
     let newOwner = ownerID ? ownerID : null;
@@ -331,8 +332,9 @@ router.post('/feeder/update', async (req, res) => {
         if (newOwner === null) {
             //no owner
             await db.promise().query(
-                "UPDATE petfeeders SET feederName = ?, userID = NULL, isActive = 0 WHERE feederID = ?", 
-                [feederName, feederID]
+                // ✅ เพิ่มการอัปเดต feederToken
+                "UPDATE petfeeders SET feederName = ?, feederToken = ?, userID = NULL, isActive = 0 WHERE feederID = ?", 
+                [feederName, token, feederID]
             );
             //delete dashboard with no owner
             await db.promise().query("DELETE FROM dashboards WHERE feederID = ?", [feederID]);
@@ -340,8 +342,9 @@ router.post('/feeder/update', async (req, res) => {
         } else {
             //owner changing
             await db.promise().query(
-                "UPDATE petfeeders SET feederName = ?, userID = ? WHERE feederID = ?", 
-                [feederName, newOwner, feederID]
+                // ✅ เพิ่มการอัปเดต feederToken
+                "UPDATE petfeeders SET feederName = ?, feederToken = ?, userID = ? WHERE feederID = ?", 
+                [feederName, token, newOwner, feederID]
             );
 
             //update owndership
