@@ -10,12 +10,18 @@ function sendAlert(res, icon, title, text, redirectUrl = 'back') {
     res.send(`
         <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        <style>body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; } .swal2-popup { border-radius: 15px !important; }</style>
+        <style>
+            body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; }
+            .swal2-popup { border-radius: 15px !important; }
+        </style>
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 Swal.fire({
-                    icon: '${icon}', title: '${title}', text: '${text}',
-                    confirmButtonColor: '#0d6efd', confirmButtonText: 'ตกลง',
+                    icon: '${icon}',
+                    title: '${title}',
+                    text: '${text}',
+                    confirmButtonColor: '#0d6efd',
+                    confirmButtonText: 'ตกลง',
                     allowOutsideClick: false
                 }).then(() => {
                     ${redirectUrl === 'back' ? 'window.history.back();' : `window.location.href='${redirectUrl}';`}
