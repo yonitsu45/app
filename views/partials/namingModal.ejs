@@ -3,26 +3,22 @@
         <div class="modal-content">
         <form action="/dashboard/add" method="POST">
             <div class="modal-header">
-                <h5 class="modal-title" id="addDashboardLabel">เพิ่ม Dashboard ใหม่</h5>
+                <h5 class="modal-title" id="addDashboardLabel">เพิ่มเครื่องให้อาหารใหม่</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
 
             <div class="modal-body">
+                <!-- 🌟 ลบช่องกรอก Token ออก เพราะระบบหลังบ้านจะสร้างให้อัตโนมัติแล้ว -->
                 <div class="mb-3">
-                    <label for="feederToken" class="form-label">Token</label>
-                    <input type="text" name="token" class="form-control" id="feederToken" placeholder="เช่น FEEDER-A001" required>
-                    <div class="form-text">รหัสที่ติดอยู่กับตัวเครื่อง ESP32 ของคุณ</div>
-                </div>
-
-                <div class="mb-3">
-                    <label for="dashboardName" class="form-label">ตั้งชื่อเรียกอุปกรณ์</label>
+                    <label for="dashboardName" class="form-label fw-bold">ตั้งชื่อเรียกอุปกรณ์</label>
                     <input type="text" name="name" class="form-control" id="dashboardName" placeholder="เช่น เครื่องให้อาหารโมจิ" maxlength="30" required>
+                    <div class="form-text text-primary"><i class="fa-solid fa-circle-info"></i> ระบบจะสร้างรหัส Pairing Code สำหรับเชื่อมต่อให้อัตโนมัติหลังจากกดบันทึก</div>
                 </div>
             </div>
 
-            <div class="modal-footer">
+            <div class="modal-footer border-top-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                <button type="submit" class="btn btn-success">บันทึก</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-plus me-1"></i> สร้างเครื่องใหม่</button>
             </div>
         </form>
         </div>

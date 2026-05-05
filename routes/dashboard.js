@@ -4,6 +4,7 @@ const db = require('../db');
 const bcrypt = require('bcryptjs');
 const { isLoggedIn } = require('../middleware/isLogged');
 const { getDashboards } = require('../middleware/getDashboards');
+const crypto = require('crypto');
 
 function sendAlert(res, icon, title, text, redirectUrl = 'back') {
     res.send(`
@@ -37,7 +38,7 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
   try {
         //pull Dashboard
         const [dashResults] = await db.promise().query(
-            'SELECT * FROM dashboards WHERE dashboardID = ? AND userID = ?', 
+            'SELECT d.*, p.feederToken FROM dashboards d JOIN petfeeders p ON d.feederID = p.feederID WHERE d.dashboardID = ? AND d.userID = ?', 
             [id, userId]
         );
 
@@ -49,14 +50,18 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
         const dashboard = dashResults[0]; // เก็บข้อมูล Dashboard
 
         const [feederResults] = await db.promise().query(
-            'SELECT isActive FROM petfeeders WHERE feederID = ?', 
+            'SELECT isActive, wsConnected, foodlvl, waterlvl, bowl_food, bowl_water FROM petfeeders WHERE feederID = ?', 
             [dashboard.feederID]
         );  
 
         const feederStatus = feederResults[0] ? {
-            wsConnected: feederResults[0].wsConnected,  // เชื่อมต่อจริง?
-            isActive: feederResults[0].isActive         // แจ้งเตือนเปิด?
-        } : { wsConnected: 0, isActive: 1 };
+            wsConnected: feederResults[0].wsConnected,  // สถานะการเชื่อมต่อ
+            isActive: feederResults[0].isActive,        // สถานะแจ้งเตือน
+            foodlvl: feederResults[0].foodlvl || 0,
+            waterlvl: feederResults[0].waterlvl || 0,
+            bowl_food: feederResults[0].bowl_food || 0,
+            bowl_water: feederResults[0].bowl_water || 0
+        } : { wsConnected: 0, isActive: 1, foodlvl: 0, waterlvl: 0, bowl_food: 0, bowl_water: 0 };
 
         //pull config
         const [configResults] = await db.promise().query(
@@ -84,38 +89,55 @@ router.get('/dashboard/:id', isLoggedIn, getDashboards, async (req, res) => {
 });
 
 router.post('/dashboard/add', isLoggedIn, async (req, res) => {
-    const { name, token } = req.body; // รับค่า name และ token มาจากฟอร์ม
+    const { name } = req.body; 
     const userId = req.session.user.userID;
 
     try {
-        //pull feeder
-        const [devices] = await db.promise().query('SELECT * FROM petfeeders WHERE feederToken = ?', [token]);
-        
-        //not found
-        if (devices.length === 0) {
-            return sendAlert(res, 'error', 'ไม่พบเครื่อง', 'ไม่พบ Token นี้ในระบบ กรุณาตรวจสอบอีกครั้ง', '/index');
-        }
+        // 1. สุ่ม Token
+        const randomHex1 = crypto.randomBytes(2).toString('hex').toUpperCase();
+        const randomHex2 = crypto.randomBytes(2).toString('hex').toUpperCase();
+        const generatedToken = `PET-${randomHex1}-${randomHex2}`;
 
-        const device = devices[0];
+        // 2. สร้างเครื่องใหม่
+        const [insertFeederResult] = await db.promise().query(
+            'INSERT INTO petfeeders (feederToken, feederName, userID, isActive, wsConnected) VALUES (?, ?, ?, ?, ?)', 
+            [generatedToken, name || 'Smart Pet Feeder', userId, 1, 0]
+        );
+        const newFeederID = insertFeederResult.insertId;
 
-        //check ownership
-        if (device.userID !== null) {
-            return sendAlert(res, 'warning', 'เครื่องมีเจ้าของแล้ว', 'เครื่องนี้ถูกลงทะเบียนโดยผู้ใช้อื่นแล้ว', '/index');
-        }
+        // 3. ผูกกับ Dashboard
+        await db.promise().query(
+            'INSERT INTO dashboards (userID, feederID, dashboardName) VALUES (?, ?, ?)', 
+            [userId, newFeederID, name || 'Smart Pet Feeder']
+        );
 
-        //update 
-        await db.promise().query('UPDATE petfeeders SET userID = ?, feederName = ? WHERE feederID = ?', 
-            [userId, name, device.feederID]);
+        const alertHtml = `<div style="text-align: left; font-size: 1.1em;"><p>สร้างเครื่องสำเร็จแล้ว!</p><p>กรุณานำรหัส Pairing Code ด้านล่างนี้ไปกรอกที่หน้าจอตั้งค่าของเครื่องให้อาหาร เพื่อเริ่มใช้งาน:</p><h3 style="color: #dc3545; text-align: center; margin-top: 15px; font-family: monospace; font-weight: bold;">${generatedToken}</h3></div>`;
 
-        //add new dashboard
-        await db.promise().query('INSERT INTO dashboards (userID, feederID, dashboardName) VALUES (?, ?, ?)', 
-            [userId, device.feederID, name]);
-
-        return sendAlert(res, 'success', 'เพิ่มเครื่องสำเร็จ', 'เชื่อมต่อเครื่องให้อาหารของคุณเรียบร้อยแล้ว', '/index');
-
+        res.send(`
+            <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+            <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+            <style>
+                body { font-family: 'Prompt', sans-serif; background-color: #f4f7f6; }
+                .swal2-popup { border-radius: 15px !important; }
+            </style>
+            <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'เพิ่มเครื่องเรียบร้อย',
+                        html: '${alertHtml}',
+                        confirmButtonColor: '#0d6efd',
+                        confirmButtonText: 'เข้าสู่ Dashboard',
+                        allowOutsideClick: false
+                    }).then(() => {
+                        window.location.href='/index';
+                    });
+                });
+            </script>
+        `);
     } catch (err) {
         console.error(err);
-        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถเพิ่มอุปกรณ์ได้ในขณะนี้', '/index');
+        return sendAlert(res, 'error', 'เกิดข้อผิดพลาด', 'ไม่สามารถสร้างอุปกรณ์ได้ในขณะนี้', '/index');
     }
 });
 

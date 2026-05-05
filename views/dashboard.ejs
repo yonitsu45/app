@@ -28,7 +28,19 @@
                         <i class="fa-solid fa-pen"></i>
                     </button>
                 </h2>
-                <p class="text-muted mt-1 mb-0">ยินดีต้อนรับ, <%= user.username %> | จัดการเครื่องให้อาหารของคุณ</p>
+                <p class="text-muted mt-1 mb-2">ยินดีต้อนรับ, <%= user.username %> | จัดการเครื่องให้อาหารของคุณ</p>
+                <% if (feederStatus.wsConnected == 0) { %>
+                <div class="alert alert-warning py-3 mt-4 d-flex align-items-center" role="alert">
+                    <i class="fa-solid fa-triangle-exclamation fs-2 text-warning me-3"></i>
+                    <div>
+                        <h5 class="alert-heading fw-bold mb-1">อุปกรณ์รอการเชื่อมต่อ WiFi</h5>
+                        <p class="mb-0">กรุณาเปิดเครื่องให้อาหาร เชื่อมต่อ WiFi ชื่อ <b>"Smart Pet Feeder"</b> และกรอกรหัส 
+                            <span class="fs-5 fw-bold font-monospace text-danger px-2 bg-white rounded border border-danger"><%= dashboard.feederToken %></span> 
+                            เพื่อเริ่มต้นการใช้งาน
+                        </p>
+                    </div>
+                </div>
+                <% } %>
             </div>
             <div class="col-md-4 text-md-end mt-3 mt-md-0">
                 <div class="card card-modern bg-white d-inline-flex flex-column align-items-start px-4 py-3" style="min-width: 250px;">
@@ -140,7 +152,11 @@
                         <% } %>
                     </div>
                     <div class="card-footer bg-white border-top-0 p-3 text-center">
-                        <% if (configs.length < 3) { %>
+                        <% if (feederStatus.wsConnected == 0) { %>
+                            <button class="btn btn-secondary w-100 fw-bold rounded-pill shadow-sm" disabled>
+                                <i class="fa-solid fa-link-slash me-1"></i> รอเชื่อมต่ออุปกรณ์...
+                            </button>
+                        <% } else if (configs.length < 3) { %>
                             <button class="btn btn-primary w-100 fw-bold rounded-pill shadow-sm" data-bs-toggle="modal" data-bs-target="#addConfig">
                                 <i class="fa-solid fa-plus me-1"></i> เพิ่มเวลาให้อาหาร
                             </button>
@@ -168,9 +184,11 @@
                     <div class="card-body position-relative z-1 p-4">
                         <h5 class="fw-bold mb-3"><i class="fa-solid fa-bolt me-2"></i>สั่งให้อาหารทันที</h5>
                         <div class="input-group input-group-lg shadow-sm">
-                            <input type="number" id="manualFeedAmount" class="form-control text-center fw-bold" value="10" min="10" max="1000" step="10" placeholder="กรัม">
+                            <input type="number" id="manualFeedAmount" class="form-control text-center fw-bold" value="10" min="10" max="1000" step="10" placeholder="กรัม" <%= feederStatus.wsConnected == 0 ? 'disabled' : '' %>>
                             <span class="input-group-text bg-white text-dark">g.</span>
-                            <button class="btn btn-warning fw-bold px-4" type="button" onclick="sendManualFeed()">จ่ายอาหาร</button>
+                            <button class="btn btn-warning fw-bold px-4" type="button" onclick="sendManualFeed()" <%= feederStatus.wsConnected == 0 ? 'disabled' : '' %>>
+                                <%= feederStatus.wsConnected == 0 ? 'รอเชื่อมต่อ...' : 'จ่ายอาหาร' %>
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -342,17 +360,14 @@
         // }));
     };
 
-    // ========================================
-    // WebSocket Message Handler (Real-time)
-    // ========================================
-     ws.onmessage = (event) => {
+    ws.onmessage = (event) => {
         // ===== Handle Binary (Camera Stream) =====
         if (event.data instanceof Blob) {
             const url = URL.createObjectURL(event.data);
             imgElement.onload = () => URL.revokeObjectURL(imgElement.src);
             imgElement.src = url;
             statusElement.innerText = "🟢 Live";
-            statusElement.style.color = "green";
+            statusElement.style.color = "#198754";
             return;
         }
 
@@ -360,12 +375,48 @@
         try {
             const data = JSON.parse(event.data);
 
+            if (data.type === 'factory_reset_kick') {
+                if (typeof themeSwal !== 'undefined') {
+                    themeSwal.fire({
+                        icon: 'info',
+                        title: 'อุปกรณ์ถูกรีเซ็ต!',
+                        text: 'เครื่องให้อาหารนี้ถูก Factory Reset ลบข้อมูลกลับสู่ค่าเริ่มต้นแล้ว',
+                        confirmButtonText: 'กลับสู่หน้าหลัก',
+                        allowOutsideClick: false
+                    }).then(() => {
+                        window.location.href = '/index';
+                    });
+                } else {
+                    alert("อุปกรณ์ถูก Factory Reset");
+                    window.location.href = '/index';
+                }
+                return; // หยุดทำงานโค้ดด้านล่างทันที
+            }
+
             // 🔥 Device Status - อัปเดตตามสถานะจริง
             if (data.type === 'device_status') {
                 console.log(`📡 Device Status: Main=${data.mainConnected}, Camera=${data.cameraConnected}`);
                 
-                // 🔥 ถ้า Main หรือ Camera ติดอย่างน้อยหนึ่งตัว → Online
                 if (data.mainConnected || data.cameraConnected) {
+                    // 👉 เช็คว่าถ้าตอนแรกหน้าเว็บถูกล็อกไว้ แต่ตอนนี้ติดแล้ว ให้รีเฟรชหน้า
+                    if ('<%= feederStatus.wsConnected %>' == '0') {
+                        // ดักไว้เผื่อแจ้งเตือนโหลดไม่ทัน
+                        if (typeof themeSwal !== 'undefined') {
+                            themeSwal.fire({
+                                icon: 'success',
+                                title: 'เชื่อมต่อสำเร็จ!',
+                                text: 'กำลังโหลดข้อมูลจากอุปกรณ์...',
+                                showConfirmButton: false,
+                                timer: 2000
+                            }).then(() => {
+                                location.reload();
+                            });
+                        } else {
+                            location.reload();
+                        }
+                    }
+
+                    // 🌟 ส่วนนี้แหละที่หายไป! สั่งให้เปลี่ยนตัวหนังสือบนหน้าเว็บ
                     let statusText = '🟢 Connected: ';
                     const parts = [];
                     
@@ -399,7 +450,8 @@
             }
 
         } catch (err) {
-            console.log('Non-JSON message');
+            // 🌟 แก้ตรงนี้: ถ้าโค้ดพังให้ฟ้องเป็นสีแดง จะได้รู้ทันทีว่าพังบรรทัดไหน
+            console.error('❌ WebSocket JSON Error:', err);
         }
     };
 
